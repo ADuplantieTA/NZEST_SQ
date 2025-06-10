@@ -10,9 +10,12 @@ from nzest_constants import (
     carrier_colors,
     sector_activity_colors,
     carrier_tech_colors,
-    #group_colors,
+    group_colors,
     stack_order,
     category_mapping,
+    PAGES,
+    fossil_carriers,
+    group_order,
 )
 
 # Base directory for consistent file path reference
@@ -73,22 +76,7 @@ logo_path = os.path.join(base_dir, "Logo.png")
 if os.path.exists(logo_path):
     st.sidebar.image(logo_path)
 
-PAGES = {
-    "Intro": "intro",
-    "Energy Demand": "Energy_Demand",
-    "Energy Demand Grouped": "Energy_Demand_Grouped",
-    # "Pie Chart All Sectors": "page_2",
-    "Pie Chart Agriculture": "page_3",
-    "Pie Chart Transport": "page_4",
-    "Pie Chart Building": "page_5",
-    "Pie Chart Industry": "page_6",
-    "Energy Demand (Bar Chart)": "Energy_Demand_Bar",
-    "Carbon Content (Bar Chart)": "Carbon_content_Bar",
-    "Multi Sector Bar Chart": "Multi_Sector_Bar",
-    "Industry Subsector Bar Chart": "Industry_Sector_Bar",
-    "Grouped Industry Bar Chart": "Grouped_Industry_Bar",
-    "GHG Emissions": "GHG_Graph",
-}
+
 
 # Intro page function
 def Intro():
@@ -190,7 +178,8 @@ def Multi_Sector_Bar():
     factor = {'GJ':1,'TJ':1e-3,'PJ':1e-6}[display_unit]
     df['Energy_display'] = df['Energy_GJ'] * factor
 
-    # Filter & group by sector, sub-sector and carrier, with "All Canada" option
+    # Filter & group by sector, sub-sector and carrier, with "All Canada" optiongroup_colors
+
     if "All Canada" in selected_provinces:
         # Ignore province filter, aggregate across all provinces
         df_filtered = df[
@@ -268,9 +257,7 @@ def Multi_Sector_Bar():
     # Create two columns for side-by-side charts
     cols = st.columns(2)
     y_label = f"Energy demand ({display_unit}/yr)"
-    fossil_carriers = ["Coal", "HFO", "LFO",
-                       "Diesel", "R-Diesel", "Gasoline", "Jet Fuel",
-                       "Prop", "NG", "Plastics"]
+
     for idx, sec in enumerate(selected_sectors[:2]):
         df_sec = grouped[grouped['Sector'] == sec]
         if df_sec.empty:
@@ -1352,11 +1339,7 @@ def Energy_Demand():
 
 def Energy_Demand_Grouped():
     
-    group_colors = {
-    "Transport": "#54AA45",
-    "Building": "#8ED0F2",
-    "Industry": "#C974C7"   
-    }
+
     st.markdown(
         """
         <style>
@@ -1479,7 +1462,7 @@ def Energy_Demand_Grouped():
     y_label = f"Energy demand ({display_unit}/yr)"
     import plotly.express as px
     # Define explicit group order
-    group_order = ["Transport", "Building", "Industry"]
+    
     fig = px.area(
         grouped,
         x='Year',

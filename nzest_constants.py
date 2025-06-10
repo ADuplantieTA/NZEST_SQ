@@ -1,5 +1,20 @@
 
-
+PAGES = {
+    "Intro": "intro",
+    "Energy Demand": "Energy_Demand",
+    "Energy Demand Grouped": "Energy_Demand_Grouped",
+    # "Pie Chart All Sectors": "page_2",
+    "Pie Chart Agriculture": "page_3",
+    "Pie Chart Transport": "page_4",
+    "Pie Chart Building": "page_5",
+    "Pie Chart Industry": "page_6",
+    "Energy Demand (Bar Chart)": "Energy_Demand_Bar",
+    "Carbon Content (Bar Chart)": "Carbon_content_Bar",
+    "Multi Sector Bar Chart": "Multi_Sector_Bar",
+    "Industry Subsector Bar Chart": "Industry_Sector_Bar",
+    "Grouped Industry Bar Chart": "Grouped_Industry_Bar",
+    "GHG Emissions": "GHG_Graph",
+}
 
 sector_activity_dict = {
     "Mot": "Mot",
@@ -465,3 +480,15 @@ category_mapping = {
         "K mine_tr"   # Potash Mine Transport
     ]
 }
+
+group_colors = {
+"Transport": "#54AA45",
+"Building": "#8ED0F2",
+"Industry": "#C974C7"   
+}
+
+
+group_order = ["Transport", "Building", "Industry"]
+fossil_carriers = ["Coal", "HFO", "LFO",
+                    "Diesel", "R-Diesel", "Gasoline", "Jet Fuel",
+                    "Prop", "NG", "Plastics"]
