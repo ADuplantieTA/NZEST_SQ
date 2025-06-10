@@ -5,6 +5,9 @@ import plotly.graph_objects as go
 import os
 from collections import defaultdict
 
+# Base directory for consistent file path reference
+base_dir = os.path.dirname(__file__)
+
 
 
 # Initialize intro flag and default page
@@ -529,8 +532,7 @@ st.markdown("""
 
 
 
-# 3) Sidebar logo (above page selector)
-logo_path = "Logo.png"
+logo_path = os.path.join(base_dir, "Logo.png")
 if os.path.exists(logo_path):
     st.sidebar.image(logo_path)
 
@@ -574,7 +576,7 @@ def Intro():
         </style>
     """, unsafe_allow_html=True)
     # Display logo
-    logo_path = "Logo.png"
+    logo_path = os.path.join(base_dir, "Logo.png")
     if os.path.exists(logo_path):
         st.image(logo_path, width=None)
     st.title("Welcome to the NZEST Dashboard")
@@ -618,7 +620,7 @@ def Multi_Sector_Bar():
 
     # Scenario toggle (no uploader)
     scenario = st.sidebar.radio("Select Scenario", ["Status-Quo", "Net-Zero (beta)"])
-    fallback = 'SQ_Post_Process.csv' if scenario == 'Status-Quo' else 'NZ_Post_Process.csv'
+    fallback = os.path.join(base_dir, 'SQ_Post_Process.csv') if scenario == 'Status-Quo' else os.path.join(base_dir, 'NZ_Post_Process.csv')
     if os.path.exists(fallback):
         df = load_csv(fallback)
     else:
@@ -872,7 +874,7 @@ def Industry_Sector_Bar():
 
     # Scenario toggle (no uploader)
     scenario = st.sidebar.radio("Select Scenario", ["Status-Quo", "Net-Zero (beta)"])
-    fallback = 'SQ_Post_Process.csv' if scenario == 'Status-Quo' else 'NZ_Post_Process.csv'
+    fallback = os.path.join(base_dir, 'SQ_Post_Process.csv') if scenario == 'Status-Quo' else os.path.join(base_dir, 'NZ_Post_Process.csv')
     if os.path.exists(fallback):
         df = load_csv(fallback)
     else:
@@ -1184,7 +1186,7 @@ def Pie_Generator(Sector, num_rings=3):
 
     # Scenario toggle (no uploader)
     scenario = st.sidebar.radio("Select Scenario", ["Status-Quo", "Net-Zero (beta)"])
-    fallback = 'SQ_Post_Process.csv' if scenario == 'Status-Quo' else 'NZ_Post_Process.csv'
+    fallback = os.path.join(base_dir, 'SQ_Post_Process.csv') if scenario == 'Status-Quo' else os.path.join(base_dir, 'NZ_Post_Process.csv')
     if os.path.exists(fallback):
         df = load_csv(fallback)
     else:
@@ -1512,7 +1514,7 @@ def Energy_Demand():
 
     # Scenario toggle (no uploader)
     scenario = st.sidebar.radio("Select Scenario", ["Status-Quo", "Net-Zero (beta)"])
-    fallback = 'SQ_Post_Process.csv' if scenario == 'Status-Quo' else 'NZ_Post_Process.csv'
+    fallback = os.path.join(base_dir, 'SQ_Post_Process.csv') if scenario == 'Status-Quo' else os.path.join(base_dir, 'NZ_Post_Process.csv')
     if os.path.exists(fallback):
         df = load_csv(fallback)
     else:
@@ -1831,7 +1833,7 @@ def Energy_Demand_Grouped():
 
     # Load scenario and data
     scenario = st.sidebar.radio("Select Scenario", ["Status-Quo", "Net-Zero (beta)"])
-    fallback = 'SQ_Post_Process.csv' if scenario == 'Status-Quo' else 'NZ_Post_Process.csv'
+    fallback = os.path.join(base_dir, 'SQ_Post_Process.csv') if scenario == 'Status-Quo' else os.path.join(base_dir, 'NZ_Post_Process.csv')
     if os.path.exists(fallback):
         df = load_csv(fallback)
     else:
@@ -2108,7 +2110,7 @@ def Energy_Demand_Bar():
 
     # Scenario toggle (no uploader)
     scenario = st.sidebar.radio("Select Scenario", ["Status-Quo", "Net-Zero (beta)"])
-    fallback = 'SQ_Post_Process.csv' if scenario == 'Status-Quo' else 'NZ_Post_Process.csv'
+    fallback = os.path.join(base_dir, 'SQ_Post_Process.csv') if scenario == 'Status-Quo' else os.path.join(base_dir, 'NZ_Post_Process.csv')
     if os.path.exists(fallback):
         df = load_csv(fallback)
     else:
