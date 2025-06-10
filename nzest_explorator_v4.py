@@ -1,0 +1,3292 @@
+import streamlit as st
+import pandas as pd
+import plotly.express as px
+import plotly.graph_objects as go
+import os
+from collections import defaultdict
+
+
+
+# Initialize intro flag and default page
+if "intro_shown" not in st.session_state:
+    st.session_state["intro_shown"] = False
+if "Go to" not in st.session_state:
+    st.session_state["Go to"] = "Energy Demand"
+
+# Option B: Callback for Intro continue button
+def _go_to_energy():
+    st.session_state['intro_shown'] = True
+    st.session_state['Go to'] = "Energy Demand"
+
+# Mapping of subsector codes to their own abbreviations (identity mapping)
+sector_activity_dict = {
+    "Mot": "Mot",
+    "Nmot": "Nmot",
+    "COth": "COth",
+    "CSH": "CSH",
+    "CWH": "CWH",
+    "Cement_fs": "Cement_fs",
+    "Cement_md": "Cement_md",
+    "Cement_op": "Cement_op",
+    "Cement_ph": "Cement_ph",
+    "Cement_tr": "Cement_tr",
+    "Chem_fs": "Chem_fs",
+    "Chem_md": "Chem_md",
+    "Chem_op": "Chem_op",
+    "Chem_pg": "Chem_pg",
+    "Chem_ph": "Chem_ph",
+    "Chem_tr": "Chem_tr",
+    "Const_pg": "Const_pg",
+    "Const_ph": "Const_ph",
+    "Const_tr": "Const_tr",
+    "Cu mine_fs": "Cu mine_fs",
+    "Cu mine_md": "Cu mine_md",
+    "Cu mine_op": "Cu mine_op",
+    "Cu mine_ph": "Cu mine_ph",
+    "Cu mine_pg": "Cu mine_pg",
+    "Cu mine_tr": "Cu mine_tr",
+    "Forest_pg": "Forest_pg",
+    "Forest_ph": "Forest_ph",
+    "Forest_tr": "Forest_tr",
+    "I&S_fs": "I&S_fs",
+    "I&S_md": "I&S_md",
+    "I&S_op": "I&S_op",
+    "I&S_pg": "I&S_pg",
+    "I&S_ph": "I&S_ph",
+    "I&S_tr": "I&S_tr",
+    "Manuf_fs": "Manuf_fs",
+    "Manuf_md": "Manuf_md",
+    "Manuf_op": "Manuf_op",
+    "Manuf_pg": "Manuf_pg",
+    "Manuf_ph": "Manuf_ph",
+    "Manuf_tr": "Manuf_tr",
+    "O non-met_fs": "O non-met_fs",
+    "O non-met_md": "O non-met_md",
+    "O non-met_pg": "O non-met_pg",
+    "O non-met_ph": "O non-met_ph",
+    "O non-met_tr": "O non-met_tr",
+    "Salt_fs": "Salt_fs",
+    "Salt_md": "Salt_md",
+    "Salt_ph": "Salt_ph",
+    "Salt_tr": "Salt_tr",
+    "Smelt_fs": "Smelt_fs",
+    "Smelt_md": "Smelt_md",
+    "Smelt_op": "Smelt_op",
+    "Smelt_ph": "Smelt_ph",
+    "Smelt_tr": "Smelt_tr",
+    "p&p_fs": "p&p_fs",
+    "p&p_md": "p&p_md",
+    "p&p_op": "p&p_op",
+    "p&p_pg": "p&p_pg",
+    "p&p_ph": "p&p_ph",
+    "p&p_tr": "p&p_tr",
+    "Alum_fs": "Alum_fs",
+    "Alum_md": "Alum_md",
+    "Alum_op": "Alum_op",
+    "Alum_ph": "Alum_ph",
+    "Alum_tr": "Alum_tr",
+    "G&S mine_fs": "G&S mine_fs",
+    "G&S mine_md": "G&S mine_md",
+    "G&S mine_op": "G&S mine_op",
+    "G&S mine_pg": "G&S mine_pg",
+    "G&S mine_ph": "G&S mine_ph",
+    "G&S mine_tr": "G&S mine_tr",
+    "I mine_fs": "I mine_fs",
+    "I mine_md": "I mine_md",
+    "I mine_op": "I mine_op",
+    "I mine_pg": "I mine_pg",
+    "I mine_ph": "I mine_ph",
+    "I mine_tr": "I mine_tr",
+    "O metal_fs": "O metal_fs",
+    "O metal_md": "O metal_md",
+    "O metal_op": "O metal_op",
+    "O metal_pg": "O metal_pg",
+    "O metal_ph": "O metal_ph",
+    "O metal_tr": "O metal_tr",
+    "K mine_fs": "K mine_fs",
+    "K mine_md": "K mine_md",
+    "K mine_ph": "K mine_ph",
+    "K mine_tr": "K mine_tr"
+}
+
+# Mapping of short carrier codes (as found in raw NZEST outputs) to full descriptive names
+carrier_dict = {
+    "d":   "Diesel",
+    "db":  "Biodiesel",
+    "dr":  "R-Diesel",
+    "et":  "Ethanol",
+    "j":   "Jet Fuel",
+    "p":   "Gasoline",
+    "e":   "Elec",
+    "hfo": "HFO",
+    "lfo": "LFO",
+    "ng":  "NG",
+    "pro": "Prop",
+    "st":  "Steam",
+    "c":   "Coal",
+    "pl":  "Plastics",
+    "w":   "Wood"
+}
+
+# 5) Define colors and stacking order
+carrier_colors = {
+    # Fossil liquids
+    "Diesel":    "#800100",
+    "R-Diesel":  "#82ec7e",   # Renewable / drop‑in diesel
+    "Biodiesel": "#29C12E",
+    "Gasoline":  "#ff0000",
+    "Jet Fuel":  "#ffa6a7",
+    "HFO":       "#757575",   # Heavy fuel‑oil (bunker)
+    "LFO":       "#9e9e9e",   # Light fuel‑oil
+    # Gaseous & thermal
+    "Prop":      "#043CD6",
+    "NG":  "#4f95d9",
+    "Steam":        "#b3e5fc",
+    # Low‑carbon / renewables
+    "Ethanol":   "#5A7B39",
+    "Wood":      "#02b050",
+    "Plastics":  "#65514b",
+    "Elec": "#ffbf00",
+    # Solids
+    "Coal": "#0d0d0d"
+}
+
+sector_activity_colors = {
+    # Cement (yellow gradient)
+    "Cement_fs": "#bca136",
+    "Cement_md": "#c6b354",
+    "Cement_op": "#d1c672",
+    "Cement_ph": "#dbd890",
+    "Cement_tr": "#e5ebb0",
+    # Chemical Industry (blue gradient)
+    "Chem_fs": "#2986cc",
+    "Chem_md": "#52a2d9",
+    "Chem_op": "#7abde6",
+    "Chem_pg": "#a3d9f2",
+    "Chem_ph": "#ccf5ff",
+    "Chem_tr": "#e6faff",
+    # Construction (orange/gold gradient)
+    "Const_pg": "#bf9000",
+    "Const_ph": "#c8a536",
+    "Const_tr": "#d2bb6d",
+    # Copper Mine (brown/copper gradient)
+    "Cu mine_fs": "#b45f06",
+    "Cu mine_md": "#c17328",
+    "Cu mine_op": "#cd8750",
+    "Cu mine_ph": "#da9b77",
+    "Cu mine_pg": "#e6af9e",
+    "Cu mine_tr": "#f3c3c6",
+    # Forest Products (forest green gradient)
+    "Forest_pg": "#3c763d",
+    "Forest_ph": "#74a874",
+    "Forest_tr": "#adcbb0",
+    # Iron & Steel (grey gradient)
+    "I&S_fs": "#808080",
+    "I&S_md": "#999999",
+    "I&S_op": "#b3b3b3",
+    "I&S_pg": "#cccccc",
+    "I&S_ph": "#e5e5e5",
+    "I&S_tr": "#f2f2f2",
+    # Manufacturing (light green gradient)
+    "Manuf_fs": "#b6d7a8",
+    "Manuf_md": "#c5dfbc",
+    "Manuf_op": "#d5e8cf",
+    "Manuf_pg": "#e4f0e3",
+    "Manuf_ph": "#f3f8f7",
+    "Manuf_tr": "#ffffff",
+    # Other Non-Metal (purple gradient)
+    "O non-met_fs": "#674ea7",
+    "O non-met_md": "#8b7ec1",
+    "O non-met_pg": "#afaeda",
+    "O non-met_ph": "#d3cff2",
+    "O non-met_tr": "#f7f7ff",
+    # Salt (pale teal gradient)
+    "Salt_fs": "#a2c4c9",
+    "Salt_md": "#bad2d7",
+    "Salt_ph": "#d3e1e5",
+    "Salt_tr": "#ebf0f3",
+    # Smelting (orange gradient)
+    "Smelt_fs": "#e69138",
+    "Smelt_md": "#eaad69",
+    "Smelt_op": "#efd999",
+    "Smelt_ph": "#f2e4c3",
+    "Smelt_tr": "#f7f3ed",
+    # Pulp & Paper (green gradient)
+    "p&p_fs": "#6aa84f",
+    "p&p_md": "#93bc7e",
+    "p&p_op": "#bad0ad",
+    "p&p_pg": "#e1e4dc",
+    "p&p_ph": "#f8f9f7",
+    "p&p_tr": "#ffffff",
+    # Aluminum (blue gradient)
+    "Alum_fs": "#a4c2f4",
+    "Alum_md": "#b7d1f7",
+    "Alum_op": "#cae1fa",
+    "Alum_ph": "#ddefff",
+    "Alum_tr": "#f0fcff",
+    # Gold & Silver Mine (gold/yellow gradient)
+    "G&S mine_fs": "#ffd966",
+    "G&S mine_md": "#ffe391",
+    "G&S mine_op": "#ffedbd",
+    "G&S mine_pg": "#fff8e8",
+    "G&S mine_ph": "#ffffff",
+    "G&S mine_tr": "#fffdf5",
+    # Iron Mine (blue-grey gradient)
+    "I mine_fs": "#6fa8dc",
+    "I mine_md": "#97bee4",
+    "I mine_op": "#bfd5ec",
+    "I mine_pg": "#e7ebf3",
+    "I mine_ph": "#f3f8fb",
+    "I mine_tr": "#ffffff",
+    # Other Metal (peach/tan gradient)
+    "O metal_fs": "#f6b26b",
+    "O metal_md": "#f8c693",
+    "O metal_op": "#f9d8bc",
+    "O metal_pg": "#faebdc",
+    "O metal_ph": "#fcfcf5",
+    "O metal_tr": "#ffffff",
+    # Potash Mine (rose/lavender gradient)
+    "K mine_fs": "#c27ba0",
+    "K mine_md": "#d6a4be",
+    "K mine_ph": "#ebcee0",
+    "K mine_tr": "#fff7fa",
+    # Transportation/other sector codes (assign greys or vivid distincts)
+    "Mot": "#555555",
+    "Nmot": "#888888",
+    "COth": "#bbbbbb",
+    "CSH": "#666ee0",
+    "CWH": "#a64d79",
+    "ROth": "#999999",
+    "RSH": "#b7b7b7",
+    "RWH": "#cccccc",
+    "Air": "#2b78e4",
+    "HDV": "#134f5c",
+    "ICB": "#741b47",
+    "LDV": "#bf9000",
+    "MDV": "#f6b26b",
+    "Off-Road": "#cfe2f3",
+    "Rail": "#b45f06",
+    "SB": "#6d9eeb",
+    "UB": "#38761d",
+    "Marine": "#1155cc"
+}
+
+carrier_tech_colors = {
+    # Diesel (deep red to pink)
+    "d_ice": "#800100",
+    "d_icemd": "#a32e23",
+    "d_icepg": "#c65b46",
+    "d_ph": "#e8886a",
+    # Biodiesel (bright green)
+    "db_ice": "#29C12E",
+    # Renewable Diesel (pastel green)
+    "dr_ice": "#82ec7e",
+    # Ethanol (olive green)
+    "et_ice": "#5A7B39",
+    # Jet Fuel (pale salmon)
+    "j_ice": "#ffa6a7",
+    # Gasoline (bright red)
+    "p_ice": "#ff0000",
+    # Elec (yellow/orange)
+    "e_resht": "#ffbf00",
+    "e_othbldg": "#ffd966",
+    "e_hwt": "#fff2b2",
+    "e_fs": "#ffdd69",
+    "e_gridmd": "#ffe9a3",
+    "e_op": "#fff6d1",
+    "e_bev": "#fffde4",
+    "e_ashp": "#ffe184",
+    # HFO (medium grey scale)
+    "hfo_boil": "#757575",
+    "hfo_othbldg": "#979797",
+    "hfo_hwt": "#b9b9b9",
+    "hfo_ph": "#dbdbdb",
+    "hfo_icepg": "#ededed",
+    "hfo_ice": "#cacaca",
+    # LFO (light grey scale)
+    "lfo_boil": "#9e9e9e",
+    "lfo_othbldg": "#bdbdbd",
+    "lfo_hwt": "#dcdcdc",
+    "lfo_cook": "#ebebeb",
+    "lfo_hef": "#c5c5c5",
+    "lfo_mef": "#d6d6d6",
+    "lfo_nef": "#e7e7e7",
+    # NG (blue gradient)
+    "ng_mef": "#4f95d9",
+    "ng_cook": "#71aee1",
+    "ng_boil": "#92c7e9",
+    "ng_hwt": "#b4e0f1",
+    "ng_icemd": "#d5f9f9",
+    "ng_ph": "#a4caf7",
+    "ng_icepg": "#c5ddfb",
+    "ng_hef": "#c5ebfa",
+    "ng_nef": "#e0f2fa",
+    "ng_ice": "#b1d8f8",
+    # Prop (mid-blue gradient)
+    "pro_mef": "#043CD6",
+    "pro_cook": "#356de4",
+    "pro_boil": "#6e9ef0",
+    "pro_hwt": "#b2d0fb",
+    "pro_ice": "#dbe9fd",
+    # Steam (light blue gradient)
+    "st_HtXch": "#b3e5fc",
+    "st_othbldg": "#c7ebfb",
+    "st_hwt": "#dbf2fb",
+    "st_ph": "#eaf8fc",
+    "st_htXch": "#f7fcff",
+    # Coal (black)
+    "c_ph": "#0d0d0d",
+    # Plastics (brownish)
+    "pl_ph": "#65514b",
+    # Wood (forest green gradient)
+    "w_ph": "#02b050",
+    "w_cook": "#5ed075",
+    "w_stove": "#99e0a1",
+    "w_hwt": "#b6ebbf",
+}
+
+
+# High‐level group colors for grouped energy demand
+group_colors = {
+    "Transport": "#2E8B57",   # SeaGreen
+    "Building":  "#1E90FF",   # DodgerBlue
+    "Industry":  "#FF8C00"    # DarkOrange
+}
+# Fallback for any missing keys (if you add new techs later):
+# For any tech in carrier_tech_dict not in carrier_tech_colors, assign "#cccccc" or similar.
+
+stack_order = [
+    # Fossil & petrochemical first (bottom of stacks)
+    "Coal",
+    "Plastics",
+    "HFO",
+    "LFO",
+    "Diesel",
+    "Ethanol",
+    "Gasoline",
+    "Jet Fuel",
+    "Prop",
+    "NG",
+    "Steam",
+    "R-Diesel",
+    "Biodiesel",
+    # Renewable solids & heat
+    "Wood",
+    # Always on top
+    "Elec"
+]
+
+# Industry category mapping for Industry_Sector_Bar
+category_mapping = {
+    "Cement": [
+        "Cement_fs",  # Cement Facility Support
+        "Cement_md",  # Cement Machine Drive
+        "Cement_op",  # Cement Other Processes
+        "Cement_ph",  # Cement Process Heat
+        "Cement_tr"   # Cement Transport
+    ],
+    "Chemical Industry": [
+        "Chem_fs",  # Chemical Industry Facility Support
+        "Chem_md",  # Chemical Industry Machine Drive
+        "Chem_op",  # Chemical Industry Other Processes
+        "Chem_pg",  # Chemical Industry Power Generation
+        "Chem_ph",  # Chemical Industry Process Heat
+        "Chem_tr"   # Chemical Industry Transport
+    ],
+    "Construction": [
+        "Const_pg",  # Construction Power Generation
+        "Const_ph",  # Construction Process Heat
+        "Const_tr"   # Construction Transport
+    ],
+    "Copper Mine": [
+        "Cu mine_fs",  # Copper Mine Facility Support
+        "Cu mine_md",  # Copper Mine Machine Drive
+        "Cu mine_op",  # Copper Mine Other Processes
+        "Cu mine_ph",  # Copper Mine Process Heat
+        "Cu mine_pg",  # Copper Mine Power Generation
+        "Cu mine_tr"   # Copper Mine Transport
+    ],
+    "Forest Products": [
+        "Forest_pg",  # Forest Products Power Generation
+        "Forest_ph"   # Forest Products Process Heat
+    ],
+    "Iron and Steel": [
+        "I&S_fs",  # Iron and Steel Facility Support
+        "I&S_md",  # Iron and Steel Machine Drive
+        "I&S_op",  # Iron and Steel Other Processes
+        "I&S_pg",  # Iron and Steel Power Generation
+        "I&S_ph",  # Iron and Steel Process Heat
+        "I&S_tr"   # Iron and Steel Transport
+    ],
+    "Manufacturing": [
+        "Manuf_fs",  # Manufacturing Facility Support
+        "Manuf_md",  # Manufacturing Machine Drive
+        "Manuf_op",  # Manufacturing Other Processes
+        "Manuf_pg",  # Manufacturing Power Generation
+        "Manuf_ph",  # Manufacturing Process Heat
+        "Manuf_tr"   # Manufacturing Transport
+    ],
+    "Other Non-Metal": [
+        "O non-met_fs",  # Other Non-Metal Facility Support
+        "O non-met_md",  # Other Non-Metal Machine Drive
+        "O non-met_pg",  # Other Non-Metal Power Generation
+        "O non-met_ph",  # Other Non-Metal Process Heat
+        "O non-met_tr"   # Other Non-Metal Transport
+    ],
+    "Salt": [
+        "Salt_fs",  # Salt Facility Support
+        "Salt_md",  # Salt Machine Drive
+        "Salt_ph",  # Salt Process Heat
+        "Salt_tr"   # Salt Transport
+    ],
+    "Smelting": [
+        "Smelt_fs",  # Smelting Industry Facility Support
+        "Smelt_md",  # Smelting Industry Machine Drive
+        "Smelt_op",  # Smelting Industry Other Processes
+        "Smelt_ph",  # Smelting Industry Process Heat
+        "Smelt_tr"   # Smelting Industry Transport
+    ],
+    "Pulp and Paper": [
+        "p&p_fs",  # Pulp and Paper Industry Facility Support
+        "p&p_md",  # Pulp and Paper Industry Machine Drive
+        "p&p_op",  # Pulp and Paper Industry Other Processes
+        "p&p_pg",  # Pulp and Paper Industry Power Generation
+        "p&p_ph",  # Pulp and Paper Industry Process Heat
+        "p&p_tr"   # Pulp and Paper Industry Transport
+    ],
+    "Aluminum": [
+        "Alum_fs",  # Aluminum Facility Support
+        "Alum_md",  # Aluminum Machine Drive
+        "Alum_op",  # Aluminum Other Processes
+        "Alum_ph",  # Aluminum Process Heat
+        "Alum_tr"   # Aluminum Transport
+    ],
+    "Gold and Silver Mine": [
+        "G&S mine_fs",  # Gold and Silver Mine Facility Support
+        "G&S mine_md",  # Gold and Silver Mine Machine Drive
+        "G&S mine_op",  # Gold and Silver Mine Other Processes
+        "G&S mine_pg",  # Gold and Silver Mine Power Generation
+        "G&S mine_ph",  # Gold and Silver Mine Process Heat
+        "G&S mine_tr"   # Gold and Silver Mine Transport
+    ],
+    "Iron Mine": [
+        "I mine_fs",  # Iron Mine Facility Support
+        "I mine_md",  # Iron Mine Machine Drive
+        "I mine_op",  # Iron Mine Other Processes
+        "I mine_pg",  # Iron Mine Power Generation
+        "I mine_ph",  # Iron Mine Process Heat
+        "I mine_tr"   # Iron Mine Transport
+    ],
+    "Other Metal": [
+        "O metal_fs",  # Other Metal Facility Support
+        "O metal_md",  # Other Metal Machine Drive
+        "O metal_op",  # Other Metal Other Processes
+        "O metal_pg",  # Other Metal Power Generation
+        "O metal_ph",  # Other Metal Process Heat
+        "O metal_tr"   # Other Metal Transport
+    ],
+    "Potash Mine": [
+        "K mine_fs",  # Potash Mine Facility Support
+        "K mine_md",  # Potash Mine Machine Drive
+        "K mine_ph",  # Potash Mine Process Heat
+        "K mine_tr"   # Potash Mine Transport
+    ]
+}
+
+
+
+# 1) Page configuration
+st.set_page_config(page_title="NZEST explorator", layout="wide")
+
+# Page transition animation: fade-in effect
+st.markdown("""
+<style>
+.stApp {
+    animation: fadeIn 0.5s ease-in-out;
+}
+@keyframes fadeIn {
+    from {opacity: 0;}
+    to {opacity: 1;}
+}
+</style>
+""", unsafe_allow_html=True)
+
+# Sidebar logo styling (rounded corners, border, shadow, full width)
+st.markdown("""
+    <style>
+    [data-testid="stSidebar"] img {
+        border-radius: 20px !important;
+        border: 2px solid #b8d8eb;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.07);
+        width: 100% !important;
+        height: auto !important;
+        max-width: 100% !important;
+        display: block;
+        margin: 0 auto;
+    }
+    </style>
+""", unsafe_allow_html=True)
+
+
+
+# 3) Sidebar logo (above page selector)
+logo_path = "Logo.png"
+if os.path.exists(logo_path):
+    st.sidebar.image(logo_path)
+
+PAGES = {
+    "Intro": "intro",
+    "Energy Demand": "Energy_Demand",
+    "Energy Demand Grouped": "Energy_Demand_Grouped",
+    "Pie Chart All Sectors": "page_2",
+    "Pie Chart Agriculture": "page_3",
+    "Pie Chart Transport": "page_4",
+    "Pie Chart Building": "page_5",
+    "Pie Chart Industry": "page_6",
+    "Energy Demand (Bar Chart)": "Energy_Demand_Bar",
+    "Carbon Content (Bar Chart)": "Carbon_content_Bar",
+    "Multi Sector Bar Chart": "Multi_Sector_Bar",
+    "Industry Subsector Bar Chart": "Industry_Sector_Bar",
+    "Grouped Industry Bar Chart": "Grouped_Industry_Bar",
+    "GHG Emissions": "GHG_Graph",
+}
+
+# Intro page function
+def Intro():
+    # Hide sidebar on intro
+    st.markdown("<style>[data-testid='stSidebar']{display:none;}</style>", unsafe_allow_html=True)
+    # Blue outline and rounded corners for intro page logo
+    st.markdown("""
+        <style>
+        /* Blue outline and rounded corners for intro page logo */
+        .stApp img[src*='Logo.png']:not([data-testid]) {
+            background: #fff;
+            border-radius: 20px !important;
+            border: 2.5px solid #3389bd !important;
+            box-shadow: 0 2px 8px rgba(51, 137, 189, 0.10);
+            padding: 10px;
+            width: 100% !important;
+            height: auto !important;
+            max-width: 350px !important;
+            display: block;
+            margin: 0 auto;
+        }
+        </style>
+    """, unsafe_allow_html=True)
+    # Display logo
+    logo_path = "Logo.png"
+    if os.path.exists(logo_path):
+        st.image(logo_path, width=None)
+    st.title("Welcome to the NZEST Dashboard")
+    st.markdown("""
+**Welcome!**  
+This dashboard presents the *Status-Quo* energy demand projections generated by the Canadian NZEST model. NZEST is a scenario analysis tool that simulates energy demand under current policies and technology adoption rates.
+
+Key highlights:
+- **Data source**: NZEST Status-Quo scenario outputs.
+- **What’s inside**:
+  - **Energy Demand**: Time series of projected demand by sector.
+  - **Pie Charts**: Sectoral breakdowns of end-use demand.
+  - **Bar Charts**: Comparative views across sectors and subsectors.
+  - **GHG Emissions**: GHG views across sectors and subsectors per provinces.
+
+Navigation guide:
+- **Go to**: Use the top-left dropdown to switch between pages.
+- **Select Scenario (beta)**: Choose between Status-Quo and Net-Zero views.
+- **Filters**: Adjust year, sector, province, and display unit in the sidebar to refine data.
+- **Downloads**: Export chart data via the download button in the sidebar.
+
+Click **Continue** to explore detailed charts and insights.
+    """, unsafe_allow_html=True)
+    if st.button("Continue", on_click=_go_to_energy):
+        pass
+    st.stop()
+
+# Automatically show intro page once
+if not st.session_state["intro_shown"]:
+    Intro()
+def Multi_Sector_Bar():
+    st.markdown(
+        """
+        <style>
+        .stApp { background-color: #fff; color: #222; }
+        </style>
+        """,
+        unsafe_allow_html=True
+    )
+    st.title("NZEST Chart Generator")
+
+    # Scenario toggle (no uploader)
+    scenario = st.sidebar.radio("Select Scenario", ["Status-Quo", "Net-Zero (beta)"])
+    fallback = 'SQ_Post_Process.csv' if scenario == 'Status-Quo' else 'NZ_Post_Process.csv'
+    if os.path.exists(fallback):
+        df = load_csv(fallback)
+    else:
+        st.error(f"No CSV for {scenario}.")
+        st.stop()
+    # Filter out placeholder sector "-" for Net-Zero
+    if scenario.startswith("Net-Zero"):
+        df = df[df['Sector'] != "-"]
+
+    # Identify energy column and base unit
+    energy_col = next(c for c in df.columns if c.startswith('Energy'))
+    base_unit = energy_col.split('(')[1].split('/')[0]
+
+    # Sidebar filters
+    st.sidebar.header("Filters")
+    sectors = sorted(df['Sector'].dropna().unique())
+    selected_sectors = st.sidebar.multiselect(
+        "Select up to 3 Sectors", sectors, default=sectors[:2], max_selections=3
+    )
+    provinces = sorted(df['Province'].dropna().unique())
+    provinces_with_all = ["All Canada"] + provinces
+    selected_provinces = st.sidebar.multiselect("Select Provinces", provinces_with_all, default=provinces_with_all)
+    years = sorted(pd.to_numeric(df['Year'], errors='coerce').dropna().unique())
+    selected_year = st.sidebar.selectbox("Select Year", years)
+
+    display_unit = st.sidebar.selectbox("Display unit", ["GJ","TJ","PJ"], index=["GJ","TJ","PJ"].index(base_unit))
+
+    # Convert to GJ and apply factor
+    df['Energy_GJ'] = df[energy_col] * ({'GJ':1,'PJ':1e6}[base_unit])
+    factor = {'GJ':1,'TJ':1e-3,'PJ':1e-6}[display_unit]
+    df['Energy_display'] = df['Energy_GJ'] * factor
+
+    # Filter & group by sector, sub-sector and carrier, with "All Canada" option
+    if "All Canada" in selected_provinces:
+        # Ignore province filter, aggregate across all provinces
+        df_filtered = df[
+            df['Sector'].isin(selected_sectors) &
+            (df['Year'] == selected_year)
+        ]
+    else:
+        df_filtered = df[
+            df['Sector'].isin(selected_sectors) &
+            df['Province'].isin(selected_provinces) &
+            (df['Year'] == selected_year)
+        ]
+    grouped = df_filtered.groupby(['Sector', 'Tech_subsector', 'Carrier'])['Energy_display'].sum().reset_index()
+
+    # Chart display options in a single expander
+    with st.sidebar.expander("Chart display options", expanded=False):
+        show_labels = st.checkbox("Show area/bar labels on chart", value=True)
+        show_legend = st.checkbox("Show legend", value=False)
+        show_decarb = st.checkbox("Show decarbonisation indicator", value=True)
+        label_font_size = st.slider("Label font size", min_value=8, max_value=28, value=16)
+        label_mode = st.radio(
+            "Label mode",
+            options=["Auto", "Manual"],
+            index=0,
+            help="Auto: show labels for large bars automatically. Manual: select which categories to show labels for."
+        )
+        tick_label_font_size = st.slider("Axis tick label font size", min_value=8, max_value=28, value=12)
+
+        # --- BEGIN: Per-trace color and text color logic for Multi_Sector_Bar ---
+        import random
+        def random_hex():
+            return "#{:06x}".format(random.randint(0, 0xFFFFFF))
+
+        # --- Trace (fill) colors toggle ---
+        show_trace_colors = st.checkbox("Select trace (fill) colors", value=False)
+        trace_label_colors = {}
+        default_map = carrier_colors
+        if show_trace_colors:
+            st.markdown("**Pick a color for each label's area/trace:**")
+            for s in selected_sectors[:2]:
+                # Each chart has its own label set
+                label_options = sorted(grouped[grouped['Sector'] == s]['Carrier'].unique())
+                for label in label_options:
+                    col = default_map.get(label, random_hex())
+                    picked = st.color_picker(f"{s}: Trace color for {label}", col, key=f"multi_bar_color_{s}_{label}")
+                    trace_label_colors[(s, label)] = picked
+        else:
+            for s in selected_sectors[:2]:
+                label_options = sorted(grouped[grouped['Sector'] == s]['Carrier'].unique())
+                for label in label_options:
+                    trace_label_colors[(s, label)] = default_map.get(label, random_hex())
+
+        # --- Label text colors toggle ---
+        show_label_text_colors = st.checkbox("Select label text colors (black or white)", value=False)
+        text_label_colors = {}
+        if show_label_text_colors:
+            st.markdown("**Pick black or white for each label's text:**")
+            for s in selected_sectors[:2]:
+                label_options = sorted(grouped[grouped['Sector'] == s]['Carrier'].unique())
+                for label in label_options:
+                    txt_col = st.selectbox(
+                        f"{s}: Text color for {label}",
+                        options=["white", "black"],
+                        index=0,
+                        key=f"multi_bar_textcol_{s}_{label}"
+                    )
+                    text_label_colors[(s, label)] = txt_col
+        else:
+            for s in selected_sectors[:2]:
+                label_options = sorted(grouped[grouped['Sector'] == s]['Carrier'].unique())
+                for label in label_options:
+                    text_label_colors[(s, label)] = "white"
+        # --- END: Per-trace color and text color logic for Multi_Sector_Bar ---
+
+    # Create two columns for side-by-side charts
+    cols = st.columns(2)
+    y_label = f"Energy demand ({display_unit}/yr)"
+    fossil_carriers = ["Coal", "HFO", "LFO",
+                       "Diesel", "R-Diesel", "Gasoline", "Jet Fuel",
+                       "Prop", "NG", "Plastics"]
+    for idx, sec in enumerate(selected_sectors[:2]):
+        df_sec = grouped[grouped['Sector'] == sec]
+        if df_sec.empty:
+            continue
+        # Per-sector label options and label selection if manual
+        label_options = sorted(df_sec['Carrier'].unique())
+        if label_mode == "Manual":
+            show_label_for = st.multiselect(
+                f"Show labels for Carriers in {sec}", label_options, default=label_options, key=f"{sec}_labels"
+            )
+        else:
+            show_label_for = label_options
+        with cols[idx]:
+            st.subheader(f"{sec} Sector — {selected_year}")
+            fig = px.bar(
+                df_sec,
+                x='Tech_subsector',
+                y='Energy_display',
+                color='Carrier',
+                text='Carrier',
+                labels={
+                    'Energy_display': y_label,
+                    'Tech_subsector': 'Sub-sector',
+                    'Carrier': 'Carrier'
+                },
+                title=f"{sec} Sector ({selected_year})",
+                color_discrete_map={label: trace_label_colors[(sec, label)] for label in label_options},
+                category_orders={
+                    'Tech_subsector': sorted(df_sec['Tech_subsector'].unique()),
+                    'Carrier': stack_order
+                }
+            )
+            # Compute stack heights per x for this sector's chart
+            x_vals = [str(x) for x in df_sec['Tech_subsector']]
+            stack_heights = {str(x): 0 for x in x_vals}
+            for t in fig.data:
+                for x, y in zip(t.x, t.y):
+                    stack_heights[str(x)] += y
+            auto_show = label_mode == "Auto"
+            manual_show = label_mode == "Manual"
+            for trace in fig.data:
+                positions = []
+                texts = []
+                for x, y, t_ in zip(trace.x, trace.y, trace.text):
+                    stack = stack_heights[str(x)]
+                    rel = y / stack if stack > 0 else 0
+                    label_name = t_ if isinstance(t_, str) else trace.name
+                    show = (
+                        (auto_show and rel >= 0.1)
+                        or (manual_show and label_name in show_label_for)
+                    )
+                    if show:
+                        positions.append("inside" if rel >= 0.1 else "outside")
+                        texts.append(label_name)
+                    else:
+                        positions.append("none")
+                        texts.append(" ")  # keep hover active with a space
+                trace.textposition = positions
+                trace.text = texts
+                trace.texttemplate = "%{text} %{y:.0f} (" + display_unit + "/yr)"
+                trace.insidetextanchor = "middle"
+                trace.textfont = dict(size=label_font_size, color=text_label_colors.get((sec, trace.name), "white"))
+                trace.hovertemplate = (
+                    "Sub-sector: %{x}<br>"
+                    f"{y_label}: "+"%{y:.1f}<br>"
+                    f"Carrier: {trace.name}<extra></extra>"
+                )
+            # Hide bar labels if show_labels is False
+            if not show_labels:
+                fig.update_traces(text="", textposition="none")
+            fig.update_layout(
+                height=500,
+                showlegend=show_legend,
+                margin=dict(r=20),
+                title_font=dict(size=tick_label_font_size)
+            )
+            fig.update_xaxes(
+                tickangle=-45,
+                showline=True,
+                linewidth=2,
+                linecolor='black',
+                ticks='outside',
+                ticklen=10,
+                tickwidth=2,
+                tickcolor='black',
+                tickfont=dict(size=tick_label_font_size),
+                title_font=dict(size=tick_label_font_size)
+            )
+            fig.update_yaxes(
+                showgrid=True,
+                gridcolor='lightgrey',
+                gridwidth=1,
+                showline=True,
+                linewidth=2,
+                linecolor='black',
+                ticks='outside',
+                ticklen=10,
+                tickwidth=2,
+                tickcolor='black',
+                mirror=True,
+                tickfont=dict(size=tick_label_font_size),
+                title_font=dict(size=tick_label_font_size)
+            )
+            if show_decarb:
+                decarb_sec = df_sec[df_sec['Carrier'].isin(fossil_carriers)] \
+                             .groupby('Tech_subsector')['Energy_display'].sum().reset_index()
+                fig.add_trace(go.Scatter(
+                    x=decarb_sec['Tech_subsector'],
+                    y=decarb_sec['Energy_display'],
+                    mode='markers+text',
+                    text=[f"{val:.1f} ({display_unit}/yr)" for val in decarb_sec['Energy_display']],
+                    textposition="middle right",
+                    textfont=dict(size=12, color="black"),
+                    marker=dict(symbol='triangle-down', size=20, color='black'),
+                    showlegend=False
+                ))
+            st.plotly_chart(fig, use_container_width=True)
+
+    # Download chart data
+    csv_bytes = grouped.to_csv(index=False).encode('utf-8')
+    st.sidebar.download_button(
+        "Download chart data as CSV",
+        data=csv_bytes,
+        file_name=f"{scenario}_multi_sector_{selected_year}_{display_unit}.csv",
+        mime="text/csv"
+    )
+
+def Industry_Sector_Bar():
+    st.markdown(
+        """
+        <style>
+        .stApp { background-color: #fff; color: #222; }
+        </style>
+        """,
+        unsafe_allow_html=True
+    )
+    st.title("NZEST Chart Generator - Industry")
+
+    # Scenario toggle (no uploader)
+    scenario = st.sidebar.radio("Select Scenario", ["Status-Quo", "Net-Zero (beta)"])
+    fallback = 'SQ_Post_Process.csv' if scenario == 'Status-Quo' else 'NZ_Post_Process.csv'
+    if os.path.exists(fallback):
+        df = load_csv(fallback)
+    else:
+        st.error(f"No CSV for {scenario}.")
+        st.stop()
+    # Filter out placeholder sector "-" for Net-Zero
+    if scenario.startswith("Net-Zero"):
+        df = df[df['Sector'] != "-"]
+
+    # Identify energy column and base unit
+    energy_col = next(c for c in df.columns if c.startswith('Energy'))
+    base_unit = energy_col.split('(')[1].split('/')[0]
+
+    # Sidebar filters
+    st.sidebar.header("Filters")
+    provinces = sorted(df['Province'].dropna().unique())
+    provinces_with_all = ["All Canada"] + provinces
+    selected_provinces = st.sidebar.multiselect("Select Provinces", provinces_with_all, default=provinces_with_all)
+    years = sorted(pd.to_numeric(df['Year'], errors='coerce').dropna().unique())
+    selected_year = st.sidebar.selectbox("Select Year", years)
+    display_unit = st.sidebar.selectbox("Display unit", ["GJ","TJ","PJ"], index=["GJ","TJ","PJ"].index(base_unit))
+
+    # Convert to GJ and apply factor
+    df['Energy_GJ'] = df[energy_col] * ({'GJ':1,'PJ':1e6}[base_unit])
+    factor = {'GJ':1,'TJ':1e-3,'PJ':1e-6}[display_unit]
+    df['Energy_display'] = df['Energy_GJ'] * factor
+
+    # Filter to Industry sector, with "All Canada" option
+    if "All Canada" in selected_provinces:
+        # Ignore province filter, aggregate across all provinces
+        df_ind = df[
+            (df['Sector'] == "Industry") &
+            (df['Year'] == selected_year)
+        ]
+    else:
+        df_ind = df[
+            (df['Sector'] == "Industry") &
+            df['Province'].isin(selected_provinces) &
+            (df['Year'] == selected_year)
+        ]
+
+    # Sidebar: select one high-level industry category
+    category_options = list(category_mapping.keys())
+    selected_categories = st.sidebar.multiselect(
+        "Select Industry Categories", category_options,
+        default=[category_options[0]],
+        max_selections=len(category_options)
+    )
+    # Filter to the selected categories using category_mapping
+    # Flatten codes from all selected categories
+    selected_codes = [code for cat in selected_categories for code in category_mapping[cat]]
+    # Map codes to descriptive subsector names
+    selected_subsectors = [sector_activity_dict[code] for code in selected_codes]
+    df_ind = df_ind[df_ind['Tech_subsector'].isin(selected_subsectors)]
+
+    # Group only by Tech_subsector and Carrier (remove Industry_group)
+    grouped_ind = df_ind.groupby(['Tech_subsector','Carrier'])['Energy_display'].sum().reset_index()
+    # Filter out small contributions (<5% of total category energy)
+    total_energy = grouped_ind['Energy_display'].sum()
+    grouped_ind = grouped_ind[grouped_ind['Energy_display'] >= 0.001 * total_energy]
+
+    # Render the chart for the chosen high-level category
+    y_label = f"Energy demand ({display_unit}/yr)"
+    fossil_carriers = ["Coal", "HFO", "LFO",
+                       "Diesel", "R-Diesel", "Gasoline", "Jet Fuel",
+                       "Prop", "NG", "Plastics"]
+
+    df_grp = grouped_ind.copy()
+
+    # Chart display options in a single expander (moved after df_grp definition)
+    with st.sidebar.expander("Chart display options", expanded=False):
+        show_labels = st.checkbox("Show area/bar labels on chart", value=True)
+        show_legend = st.checkbox("Show legend", value=False)
+        show_decarb = st.checkbox("Show decarbonisation indicator", value=True)
+        label_font_size = st.slider("Label font size", min_value=8, max_value=28, value=16)
+        label_mode = st.radio(
+            "Label mode",
+            options=["Auto", "Manual"],
+            index=0,
+            help="Auto: show labels for large bars automatically. Manual: select which categories to show labels for."
+        )
+        label_options = sorted(df_grp['Carrier'].unique())
+        if label_mode == "Manual":
+            show_label_for = st.multiselect(
+                "Show labels for Carriers", label_options, default=label_options
+            )
+        else:
+            show_label_for = label_options
+        # Add tick label font size slider at the end
+        tick_label_font_size = st.slider("Axis tick label font size", min_value=8, max_value=28, value=12)
+
+        # --- BEGIN: Per-label color logic for Industry_Sector_Bar ---
+        import random
+        def random_hex():
+            return "#{:06x}".format(random.randint(0, 0xFFFFFF))
+
+        # --- Trace (fill) colors toggle ---
+        show_trace_colors = st.checkbox("Select trace (fill) colors", value=False)
+        label_colors = {}
+        default_map = carrier_colors
+        if show_trace_colors:
+            st.markdown("**Pick a color for each label's area/trace:**")
+            for label in label_options:
+                col = default_map.get(label, random_hex())
+                picked = st.color_picker(f"Trace color for {label}", col, key=f"ind_bar_color_{label}")
+                label_colors[label] = picked
+        else:
+            for label in label_options:
+                label_colors[label] = default_map.get(label, random_hex())
+
+        # --- Label text colors toggle ---
+        show_label_text_colors = st.checkbox("Select label text colors (black or white)", value=False)
+        label_text_colors = {}
+        if show_label_text_colors:
+            st.markdown("**Pick black or white for each label's text:**")
+            for label in label_options:
+                txt_col = st.selectbox(
+                    f"Text color for {label}",
+                    options=["white", "black"],
+                    index=0,
+                    key=f"ind_bar_textcol_{label}"
+                )
+                label_text_colors[label] = txt_col
+        else:
+            for label in label_options:
+                label_text_colors[label] = "white"
+        # --- END: Per-label color logic for Industry_Sector_Bar ---
+
+    # Display combined header for multiple categories
+    categories_label = ", ".join(selected_categories)
+    st.subheader(f"{categories_label} — {selected_year}")
+    fig = px.bar(
+        df_grp,
+        x='Tech_subsector',
+        y='Energy_display',
+        color='Carrier',
+        text='Carrier',
+        labels={
+            'Energy_display': y_label,
+            'Tech_subsector': 'Sub-sector',
+            'Carrier': 'Carrier'
+        },
+        title=f"{categories_label} ({selected_year})",
+        color_discrete_map=label_colors,
+        category_orders={
+            'Tech_subsector': sorted(df_grp['Tech_subsector'].unique()),
+            'Carrier': stack_order
+        }
+    )
+    # Compute stack heights for each x (subsector)
+    stack_heights = defaultdict(float)
+    for t in fig.data:
+        for x, y in zip(t.x, t.y):
+            stack_heights[str(x)] += y
+
+    auto_show = label_mode == "Auto"
+    manual_show = label_mode == "Manual"
+    threshold = 0.05  # 10% of stack height
+
+    for trace in fig.data:
+        positions = []
+        texts = []
+        for x, y, t in zip(trace.x, trace.y, trace.text):
+            stack = stack_heights[str(x)]
+            rel = y / stack if stack > 0 else 0
+            label_name = t if isinstance(t, str) else trace.name
+            show = (
+                (auto_show and rel >= threshold)
+                or (manual_show and label_name in show_label_for)
+            )
+            if show:
+                # If under 1 PJ/yr, always put label "outside"
+                if y < 1:
+                    positions.append("outside")
+                else:
+                    positions.append("inside" if rel >= threshold else "outside")
+                texts.append(label_name)
+            else:
+                positions.append("none")
+                texts.append(" ")  # keep hover active with a space
+        trace.textposition = positions
+        trace.text = texts
+        trace.texttemplate = "%{text} %{y:.1f} (" + display_unit + "/yr)"
+        trace.insidetextanchor = "middle"
+        trace.textfont = dict(size=label_font_size, color=label_text_colors.get(trace.name, "white"))
+        trace.hovertemplate = (
+            "Sub-sector: %{x}<br>"
+            f"{y_label}: "+"%{y:.1f}<br>"
+            f"Carrier: {trace.name}<extra></extra>"
+        )
+    # Hide bar labels if show_labels is False
+    if not show_labels:
+        fig.update_traces(text="", textposition="none")
+    fig.update_layout(
+        height=800,
+        showlegend=show_legend,
+        margin=dict(r=20),
+        title_font=dict(size=tick_label_font_size)
+    )
+    fig.update_xaxes(
+        tickangle=-45,
+        showline=True,
+        linewidth=2,
+        linecolor='black',
+        ticks='outside',
+        ticklen=10,
+        tickwidth=2,
+        tickcolor='black',
+        tickfont=dict(size=tick_label_font_size),
+        title_font=dict(size=tick_label_font_size)
+    )
+    fig.update_yaxes(
+        showgrid=True,
+        gridcolor='lightgrey',
+        gridwidth=1,
+        showline=True,
+        linewidth=2,
+        linecolor='black',
+        ticks='outside',
+        ticklen=10,
+        tickwidth=2,
+        tickcolor='black',
+        tickformat=".1f",
+        mirror=True,
+        tickfont=dict(size=tick_label_font_size),
+        title_font=dict(size=tick_label_font_size)
+    )
+    if show_decarb:
+        decarb_grp = df_grp[df_grp['Carrier'].isin(fossil_carriers)] \
+                    .groupby('Tech_subsector')['Energy_display'].sum().reset_index()
+        fig.add_trace(go.Scatter(
+            x=decarb_grp['Tech_subsector'],
+            y=decarb_grp['Energy_display'],
+            mode='markers+text',
+            text=[f"{val:.1f} ({display_unit}/yr)" for val in decarb_grp['Energy_display']],
+            textposition="middle right",
+            textfont=dict(size=label_font_size, color="black"),
+            marker=dict(symbol='triangle-down', size=20, color='black'),
+            showlegend=False
+        ))
+    st.plotly_chart(fig, use_container_width=True)
+
+    # Download chart data
+    csv_bytes = grouped_ind.to_csv(index=False).encode('utf-8')
+    st.sidebar.download_button(
+        "Download industry data as CSV",
+        data=csv_bytes,
+        file_name=f"{scenario}_industry_{selected_year}_{display_unit}.csv",
+        mime="text/csv"
+    )
+
+pages_for_select = [k for k in PAGES.keys() if k != "Intro"]
+selection = st.sidebar.selectbox("Go to", pages_for_select, key="Go to")
+
+# 6) CSV loading with caching
+@st.cache_data
+def load_csv(path) -> pd.DataFrame:
+    df = pd.read_csv(path, low_memory=False)
+    df.columns = df.columns.str.strip()
+    col_map = {}
+    # Map Province, Year, Sector
+    for orig, name in [(c, 'Province') for c in df.columns if c.lower()=='province'] + \
+                       [(c, 'Year') for c in df.columns if c.lower()=='year'] + \
+                       [(c, 'Sector') for c in df.columns if c.lower()=='sector']:
+        col_map[orig] = name
+    # Energy demand (detect unit)
+    ed_cols = [c for c in df.columns if 'energy demand' in c.lower()]
+    if ed_cols:
+        orig = ed_cols[0]
+        unit = 'PJ' if 'pj' in orig.lower() else 'GJ'
+        col_map[orig] = f'Energy ({unit}/yr)'
+    # Carrier
+    carr = [c for c in df.columns if c.lower() in ['carrier','carrier group']]
+    if carr:
+        col_map[carr[0]] = 'Carrier'
+    # Tech_name, Tech_subsector
+    for target in ['Tech_name','Tech_subsector']:
+        cols = [c for c in df.columns if c.lower().replace(' ','_')==target.lower()]
+        if cols:
+            col_map[cols[0]] = target
+
+    # Apply the column renaming
+    df = df.rename(columns=col_map)
+
+    # Convert carrier short codes to full names if present
+    if 'Carrier' in df.columns:
+        df['Carrier'] = (
+            df['Carrier']
+            .astype(str)
+            .str.lower()
+            .map(carrier_dict)
+            .fillna(df['Carrier'])
+        )
+
+    return df
+
+
+def Pie_Generator(Sector, num_rings=3):
+    # (Chart display options expander removed; always show labels and legend)
+    st.markdown(
+        """
+        <style>
+        .stApp { background-color: #fff; color: #222; }
+        </style>
+        """,
+        unsafe_allow_html=True
+    )
+    st.title("NZEST Chart Generator")
+
+    # Scenario toggle (no uploader)
+    scenario = st.sidebar.radio("Select Scenario", ["Status-Quo", "Net-Zero (beta)"])
+    fallback = 'SQ_Post_Process.csv' if scenario == 'Status-Quo' else 'NZ_Post_Process.csv'
+    if os.path.exists(fallback):
+        df = load_csv(fallback)
+    else:
+        st.error(f"No CSV for {scenario}.")
+        st.stop()
+    # Filter out placeholder sector "-" for Net-Zero
+    if scenario.startswith("Net-Zero"):
+        df = df[df['Sector'] != "-"]
+
+    # Identify energy column and base unit
+    energy_col = next(c for c in df.columns if c.startswith('Energy'))
+    base_unit = energy_col.split('(')[1].split('/')[0]
+
+    # Sidebar filters
+    st.sidebar.header("Filters")
+    provinces = sorted(df['Province'].dropna().unique())
+    provinces_with_all = ["All Canada"] + provinces
+    selected_provinces = st.sidebar.multiselect("Select Provinces", provinces_with_all, default=provinces_with_all)
+    years = sorted(pd.to_numeric(df['Year'], errors='coerce').dropna().unique())
+    selected_year = st.sidebar.selectbox("Select Year", years)
+
+    display_unit = st.sidebar.selectbox("Display unit", ["GJ","TJ","PJ"], index=["GJ","TJ","PJ"].index(base_unit))
+
+    # Chart display options in a single expander (controls depend on label_mode)
+    with st.sidebar.expander("Chart display options", expanded=False):
+        label_mode = st.radio(
+            "Label display mode",
+            options=["Auto", "Manual"],
+            index=0,
+            help="Auto: show label inside slice if it fits; Manual: control label size, abbreviation, and other options"
+        )
+        if label_mode == "Auto":
+            show_labels = st.checkbox("Show pie labels in chart", value=True)
+            show_percent = st.checkbox("Show values as percent of total", value=False)
+            min_pct_to_show_label = st.slider(
+                "Show labels for slices ≥ this % of pie", min_value=0, max_value=20, value=3, step=1
+            )
+            auto_label_font_size = st.slider("Label font size", min_value=8, max_value=28, value=16)
+            # In Auto mode, all other options are hidden
+        else:
+            label_font_size = st.slider("Label font size", min_value=8, max_value=28, value=16)
+            show_labels = st.checkbox("Show pie labels in chart", value=True)
+            show_percent = st.checkbox("Show values as percent of total", value=False)
+            manual_min_pct_to_show_label = st.slider(
+                "Show labels for slices ≥ this % of pie", min_value=0, max_value=20, value=0, step=1
+            )
+            adaptive_abbreviate = st.checkbox("Abbreviate labels with ellipsis if too long", value=False)
+            max_label_length = st.slider("Max label length (chars, ellipsis after)", min_value=4, max_value=20, value=8)
+            # Removed collapse_small and other_threshold controls
+            label_orientation = st.selectbox(
+                "Label orientation",
+                options=["auto", "horizontal", "radial", "tangential"],
+                index=0
+            )
+            show_data_table = st.checkbox("Show table of chart values below", value=False)
+
+    # Convert to GJ and apply factor
+    df['Energy_GJ'] = df[energy_col] * ({'GJ':1,'PJ':1e6}[base_unit])
+    factor = {'GJ':1,'TJ':1e-3,'PJ':1e-6}[display_unit]
+    df['Energy_display'] = df['Energy_GJ'] * factor
+
+    if Sector == "All":
+        if "All Canada" in selected_provinces:
+            # Aggregate across all provinces, ignore province filter
+            df_filtered = df[
+                (df['Year'] == selected_year)
+            ]
+        else:
+            df_filtered = df[
+                df['Province'].isin(selected_provinces) &
+                (df['Year'] == selected_year)
+            ]
+    else:
+        if "All Canada" in selected_provinces:
+            df_filtered = df[
+                (df['Sector'].str.contains(Sector, case=False, na=False)) &
+                (df['Year'] == selected_year)
+            ]
+        else:
+            df_filtered = df[
+                (df['Sector'].str.contains(Sector, case=False, na=False)) &
+                df['Province'].isin(selected_provinces) &
+                (df['Year'] == selected_year)
+            ]
+
+    # Group for sunburst: aggregate over the selected time range
+    df_grouped_donut = df_filtered.groupby(['Tech_subsector', 'Carrier', 'Tech_name'])['Energy_display'].sum().reset_index()
+
+    # --- Determine color_discrete_map for px.sunburst based on outermost ring ---
+    # The sunburst path is set by path = base_path[:num_rings], so outermost is path[-1]
+    def get_sunburst_color_map(path):
+        """Return the appropriate color_discrete_map for px.sunburst given the path."""
+        if not path:
+            return {}
+        outer = path[-1]
+        if outer == 'Carrier':
+            return carrier_colors
+        elif outer == 'Tech_name':
+            return carrier_tech_colors
+        elif outer == 'Tech_subsector' or outer == 'Tech_subsector_display':
+            return sector_activity_colors
+        else:
+            return {}
+
+    # --- New: Pie label/legend logic depending on label_mode ---
+    if label_mode == "Auto":
+        # Compute slice percentage and determine labels (do not filter out small slices)
+        df_grouped_donut['pct'] = df_grouped_donut['Energy_display'] / df_grouped_donut['Energy_display'].sum() * 100
+        sunburst_label_col = 'Tech_subsector'
+        base_path = [sunburst_label_col, 'Carrier', 'Tech_name']
+        path = base_path[:num_rings]
+        color_map = get_sunburst_color_map(path)
+        fig_donut = px.sunburst(
+            df_grouped_donut,
+            path=path,
+            values='Energy_display',
+            color=path[-1],  # color by outermost ring
+            color_discrete_map=color_map,
+            title=f"{scenario} Transport Energy breakdown ({display_unit})",
+        )
+        fig_donut.update_layout(
+            height=1080,
+            title_x=0.5,
+            title_xanchor='center',
+            showlegend=True,
+            uniformtext=dict(mode='show', minsize=1)
+        )
+        # --- Begin: Per-slice label display logic for sunburst ---
+        for trace in fig_donut.data:
+            values = trace.values if hasattr(trace, "values") else []
+            labels = trace.labels if hasattr(trace, "labels") else []
+            total = sum(values) if values is not None and len(values) > 0 else 0
+            text_list = []
+            for label, value in zip(labels, values):
+                pct = (value / total * 100) if total > 0 else 0
+                if show_labels and value > 0 and pct >= min_pct_to_show_label:
+                    if show_percent:
+                        text_list.append(f"{label}<br>{pct:.1f}%")
+                    else:
+                        text_list.append(f"{label}<br>{value:.0f} ({display_unit}/yr)")
+                else:
+                    text_list.append("")
+            trace.text = text_list
+            trace.texttemplate = "%{text}"
+            trace.textinfo = "text"
+            trace.insidetextorientation = "horizontal"
+            trace.textfont = dict(size=auto_label_font_size)
+        # --- End: Per-slice label display logic for sunburst ---
+        show_data_table = False  # table option not shown in Auto mode
+    else:
+        # Manual mode: use all manual options and display logic
+        def abbreviate_with_ellipsis(label, max_len):
+            return label if len(label) <= max_len else label[:max_len - 1] + "…"
+
+        if adaptive_abbreviate and 'Tech_subsector' in df_grouped_donut.columns:
+            df_grouped_donut['Tech_subsector_display'] = df_grouped_donut['Tech_subsector'].astype(str).apply(
+                lambda x: abbreviate_with_ellipsis(x, max_label_length)
+            )
+            sunburst_label_col = 'Tech_subsector_display'
+        else:
+            sunburst_label_col = 'Tech_subsector'
+
+        base_path = [sunburst_label_col, 'Carrier', 'Tech_name']
+        path = base_path[:num_rings]
+        color_map = get_sunburst_color_map(path)
+        fig_donut = px.sunburst(
+            df_grouped_donut,
+            path=path,
+            values='Energy_display',
+            color=path[-1],  # color by outermost ring
+            color_discrete_map=color_map,
+            title=f"{scenario} Transport Energy breakdown ({display_unit})",
+        )
+        fig_donut.update_layout(
+            height=1080,
+            title_x=0.5,
+            title_xanchor='center',
+            showlegend=True,
+            uniformtext=dict(mode='show', minsize=1)
+        )
+        # --- Begin: Per-slice label display logic for sunburst, Manual mode ---
+        total_energy = df_grouped_donut['Energy_display'].sum()
+        for trace in fig_donut.data:
+            values = trace.values if hasattr(trace, "values") else []
+            labels = trace.labels if hasattr(trace, "labels") else []
+            text_list = []
+            for label, value in zip(labels, values):
+                pct = (value / total_energy * 100) if total_energy > 0 else 0
+                if show_labels and value > 0 and pct >= manual_min_pct_to_show_label:
+                    if show_percent:
+                        text_list.append(f"{label}<br>{pct:.1f}%")
+                    else:
+                        text_list.append(f"{label}<br>{value:.0f} ({display_unit}/yr)")
+                else:
+                    text_list.append("")
+            trace.text = text_list
+            trace.texttemplate = "%{text}"
+            trace.textinfo = "text"
+            trace.insidetextorientation = label_orientation if 'label_orientation' in locals() else "auto"
+            trace.textfont = dict(size=label_font_size)
+        # --- End: Per-slice label display logic for sunburst, Manual mode ---
+
+    # if you used animation_frame, propagate title centering into each frame
+    for frame in fig_donut.frames:
+        # ensure frame.layout is a dict
+        if frame.layout is None:
+            frame.layout = {}
+        frame.layout.update(
+            title_text=fig_donut.layout.title.text,
+            title_x=0.5,
+            title_xanchor='center'
+        )
+
+    st.plotly_chart(fig_donut, use_container_width=True)
+
+    if (label_mode == "Manual" and 'show_data_table' in locals() and show_data_table):
+        st.subheader("Underlying values for chart")
+        # Show only relevant columns
+        show_cols = [sunburst_label_col, 'Carrier', 'Tech_name', 'Energy_display']
+        st.dataframe(df_grouped_donut[show_cols])
+
+    # Download button
+    csv_bytes = df_grouped_donut.to_csv(index=False).encode('utf-8')
+    st.sidebar.download_button(
+        "Download chart data as CSV",
+        data=csv_bytes,
+        file_name=f"{scenario}_transport_data_{display_unit}.csv",
+        mime="text/csv"
+    )
+
+
+
+# --- Custom sunburst function (added after Pie_Generator) ---
+def custom_sunburst(
+    df,
+    carrier_colors,
+    sector_activity_colors,
+    carrier_tech_colors,
+    value_col
+):
+    """
+    Generate a Plotly sunburst figure with custom color mapping and label logic.
+    Args:
+        df: DataFrame containing columns for 'Tech_subsector', 'Carrier', 'Tech_name', and value_col.
+        carrier_colors: dict mapping carrier names to colors.
+        sector_activity_colors: dict mapping sector activity names to colors.
+        carrier_tech_colors: dict mapping carrier-tech names to colors.
+        value_col: column name to use for values (e.g., 'Energy_display').
+    Returns:
+        Plotly Figure object.
+    """
+    import plotly.express as px
+    # Determine which color map to use based on outermost ring
+    def get_color_map(path):
+        if not path:
+            return {}
+        outer = path[-1]
+        if outer == 'Carrier':
+            return carrier_colors
+        elif outer == 'Tech_name':
+            return carrier_tech_colors
+        elif outer == 'Tech_subsector' or outer == 'Tech_subsector_display':
+            return sector_activity_colors
+        else:
+            return {}
+
+    # Default sunburst path: [Tech_subsector, Carrier, Tech_name]
+    base_path = ['Tech_subsector', 'Carrier', 'Tech_name']
+    path = base_path
+    color_map = get_color_map(path)
+    fig = px.sunburst(
+        df,
+        path=path,
+        values=value_col,
+        color=path[-1],
+        color_discrete_map=color_map,
+    )
+    # Set layout and label display
+    fig.update_layout(
+        height=800,
+        title_x=0.5,
+        title_xanchor='center',
+        showlegend=True,
+        uniformtext=dict(mode='show', minsize=1)
+    )
+    # Per-slice label logic: show label and value if >3% of total
+    total = df[value_col].sum()
+    min_pct_to_show_label = 3
+    display_unit = ""
+    if "GJ" in value_col:
+        display_unit = "GJ"
+    elif "TJ" in value_col:
+        display_unit = "TJ"
+    elif "PJ" in value_col:
+        display_unit = "PJ"
+    else:
+        display_unit = value_col
+    for trace in fig.data:
+        values = trace.values if hasattr(trace, "values") else []
+        labels = trace.labels if hasattr(trace, "labels") else []
+        text_list = []
+        for label, value in zip(labels, values):
+            pct = (value / total * 100) if total > 0 else 0
+            if value > 0 and pct >= min_pct_to_show_label:
+                text_list.append(f"{label}<br>{value:.0f} ({display_unit}/yr)")
+            else:
+                text_list.append("")
+        trace.text = text_list
+        trace.texttemplate = "%{text}"
+        trace.textinfo = "text"
+        trace.insidetextorientation = "horizontal"
+        trace.textfont = dict(size=16)
+    return fig
+
+def Energy_Demand():
+    st.markdown(
+        """
+        <style>
+        .stApp { background-color: #fff; color: #222; }
+        </style>
+        """,
+        unsafe_allow_html=True
+    )
+    st.title("NZEST Chart Generator")
+
+    # Scenario toggle (no uploader)
+    scenario = st.sidebar.radio("Select Scenario", ["Status-Quo", "Net-Zero (beta)"])
+    fallback = 'SQ_Post_Process.csv' if scenario == 'Status-Quo' else 'NZ_Post_Process.csv'
+    if os.path.exists(fallback):
+        df = load_csv(fallback)
+    else:
+        st.error(f"No CSV for {scenario}.")
+        st.stop()
+    # Filter out placeholder sector "-" for Net-Zero
+    if scenario.startswith("Net-Zero"):
+        df = df[df['Sector'] != "-"]
+
+    # Identify energy column and base unit
+    energy_col = next(c for c in df.columns if c.startswith('Energy'))
+    base_unit = energy_col.split('(')[1].split('/')[0]
+
+    # Sidebar filters
+    st.sidebar.header("Filters")
+    sectors = sorted(df['Sector'].dropna().unique())
+    selected_sectors = st.sidebar.multiselect("Select Sectors", sectors, default=sectors)
+    provinces = sorted(df['Province'].dropna().unique())
+    # Insert "All Canada" at the top of the provinces list
+    provinces_with_all = ["All Canada"] + provinces
+    selected_provinces = st.sidebar.multiselect("Select Provinces", provinces_with_all, default=provinces_with_all)
+    min_y = int(pd.to_numeric(df['Year'], errors='coerce').min())
+    max_y = int(pd.to_numeric(df['Year'], errors='coerce').max())
+    selected_years = st.sidebar.slider("Select Year Range", min_y, max_y, (min_y, max_y))
+
+    # Group-by and unit toggle
+    group_map = {
+        "Carrier": "Carrier",
+        "Carrier & Tech": "Tech_name",
+        "Sub Sector": "Tech_subsector"
+    }
+    sel_label = st.sidebar.selectbox("Group by", list(group_map.keys()))
+    dim_col = group_map[sel_label]
+    display_unit = st.sidebar.selectbox("Display unit", ["GJ","TJ","PJ"], index=["GJ","TJ","PJ"].index(base_unit))
+
+
+    # Convert to GJ and apply factor
+    df['Energy_GJ'] = df[energy_col] * ({'GJ':1,'PJ':1e6}[base_unit])
+    factor = {'GJ':1,'TJ':1e-3,'PJ':1e-6}[display_unit]
+    df['Energy_display'] = df['Energy_GJ'] * factor
+
+    # Filter & group, with "All Canada" option
+    if "All Canada" in selected_provinces:
+        # Ignore specific province filters and aggregate across all provinces
+        df_filtered = df[
+            df['Sector'].isin(selected_sectors) &
+            df['Year'].between(*selected_years)
+        ]
+    else:
+        df_filtered = df[
+            df['Sector'].isin(selected_sectors) &
+            df['Province'].isin(selected_provinces) &
+            df['Year'].between(*selected_years)
+        ]
+    grouped = df_filtered.groupby(['Year', dim_col])['Energy_display'].sum().reset_index()
+
+    # Get label options for the current grouping
+    label_options = sorted(grouped[dim_col].unique())
+
+    # Chart display options in a single expander (now after grouping and label_options)
+    with st.sidebar.expander("Chart display options", expanded=False):
+        show_cutoff_line = st.checkbox("Show 2022 data/model cutoff", value=False)
+        show_labels = st.checkbox("Show area/bar labels on chart", value=True)
+        show_legend = st.checkbox("Show legend", value=False)
+        label_font_size = st.slider("Label font size", min_value=8, max_value=28, value=16)
+        label_mode = st.radio(
+            "Label mode",
+            options=["Auto", "Manual"],
+            index=0,
+            help="Auto: show labels for large bands automatically. Manual: select which categories to show labels for."
+        )
+        if label_mode == "Manual":
+            show_label_for = st.multiselect(
+                f"Show labels for {sel_label}s", label_options, default=label_options
+            )
+        else:
+            show_label_for = label_options
+        tick_label_font_size = st.slider(
+            "Axis tick label font size", min_value=8, max_value=28, value=12
+        )
+        show_data_table = st.checkbox("Show table of chart values below", value=False)
+
+        # --- BEGIN: New per-label color logic ---
+        # Set default_map based on sel_label
+        if sel_label == "Carrier & Tech":
+            default_map = carrier_tech_colors
+        elif sel_label == "Sub Sector":
+            default_map = sector_activity_colors
+        elif sel_label == "Carrier":
+            default_map = carrier_colors
+        else:
+            default_map = {}
+
+        show_trace_colors = st.checkbox("Select trace (fill) colors", value=False)
+        label_colors = {}
+        if show_trace_colors:
+            st.markdown("**Pick a color for each label's area/trace:**")
+            for label in label_options:
+                col = default_map.get(label, None)
+                picked = st.color_picker(f"Trace color for {label}", col if col is not None else "#CCCCCC", key=f"color_{sel_label}_{label}")
+                label_colors[label] = picked
+        else:
+            for label in label_options:
+                c = default_map.get(label, None)
+                if c is not None:
+                    label_colors[label] = c
+                # If not in map, do not assign. Let Plotly use default color.
+
+        # --- Label text colors toggle ---
+        show_label_text_colors = st.checkbox("Select label text colors (black or white)", value=False)
+        label_text_colors = {}
+        if show_label_text_colors:
+            st.markdown("**Pick black or white for each label's text:**")
+            for label in label_options:
+                txt_col = st.selectbox(
+                    f"Text color for {label}",
+                    options=["white", "black"],
+                    index=0,
+                    key=f"textcol_{sel_label}_{label}"
+                )
+                label_text_colors[label] = txt_col
+        else:
+            for label in label_options:
+                label_text_colors[label] = "white"
+        # --- END: New per-label color logic ---
+
+    # Plot
+    y_label = f"Energy demand ({display_unit}/yr)"
+    fig = px.area(
+        grouped, x='Year', y='Energy_display', color=dim_col,
+        labels={'Energy_display': y_label, 'Year':'Year', dim_col:sel_label},
+        title=f"{scenario} {y_label} by {sel_label}",
+        category_orders={dim_col: stack_order},
+        color_discrete_map=label_colors,
+    )
+    
+    # Ensure each area has its fill color without border lines
+    fig.for_each_trace(
+        lambda trace: trace.update(
+            fillcolor=trace.line.color,
+            line=dict(width=0)
+        )
+    )
+    fig.update_layout(height=1080)
+    # Configure major and minor ticks on axes
+    fig.update_xaxes(
+        tickmode='linear',
+        dtick=5,
+        showline=True,
+        linewidth=2,
+        linecolor='black',
+        ticks='outside',
+        ticklen=10,
+        tickwidth=2,
+        tickcolor='black',
+        minor=dict(
+            dtick=1,
+            ticklen=5,
+            tickwidth=2,
+            tickcolor='black',
+            showgrid=False
+        ),
+        mirror=True,
+        tickfont=dict(size=tick_label_font_size),
+        title_font=dict(size=tick_label_font_size)
+    )
+    fig.update_yaxes(
+        tickmode='auto',
+        showline=True,
+        showgrid=True,
+        gridcolor='lightgrey',
+        gridwidth=1,
+        linewidth=2,
+        linecolor='black',
+        ticks='outside',
+        ticklen=10,
+        tickwidth=2,
+        tickcolor='black',
+        minor=dict(
+            ticklen=5,
+            tickwidth=2,
+            tickcolor='black',
+            showgrid=True
+        ),
+        minor_gridcolor='lightgrey',
+        minor_gridwidth=0.5,
+        mirror=True,
+        tickfont=dict(size=tick_label_font_size),
+        title_font=dict(size=tick_label_font_size)
+    )
+
+    # Center title and set font size to match tick_label_font_size
+    fig.update_layout(
+        title_x=0.5,
+        title_xanchor='center',
+        title_font=dict(size=tick_label_font_size)
+    )
+
+    # Set legend visibility based on sidebar (after creating figure, before plotting)
+    fig.update_layout(showlegend=show_legend)
+
+    # Toggle to show historical/model cutoff
+    if show_cutoff_line:
+        fig.add_vline(
+            x=2022,
+            line_dash="dot",
+            line_color="black",
+            line_width=2,
+            annotation_text="   Historical → Model",
+            annotation_position="top right",
+            annotation_font_size=12
+        )
+
+    # Only run area label annotation code block if show_labels is True
+    if show_labels:
+        y_offset_abs  = 0.0
+        offset_frac   = 0.2
+        pixel_shift   = 0
+        min_height_ratio = 0.02  # 2% of total height at target year
+
+        # 3) Identify the x-position to place the label
+        target_year = 2035
+        if not fig.data:
+            st.warning("No data available for the current selection.")
+            return
+        x_vals = list(fig.data[0].x)
+        idx = x_vals.index(target_year) if target_year in x_vals else len(x_vals) // 2
+        x_pos = x_vals[idx]
+
+        # 4) Compute total stack height at target year
+        total_stack_height = sum(trace.y[idx] for trace in fig.data)
+
+        # 5) Loop through traces and annotate if big enough
+        stacked_y = [0.0] * len(x_vals)
+
+        auto_show = label_mode == "Auto"
+        manual_show = label_mode == "Manual"
+        for trace in fig.data:
+            y_top = [a + b for a, b in zip(stacked_y, trace.y)]
+            band_height = trace.y[idx]
+            if (
+                (auto_show and band_height / total_stack_height >= min_height_ratio)
+                or (manual_show and trace.name in show_label_for)
+            ):
+                if band_height / total_stack_height >= min_height_ratio:
+                    y_mid = (stacked_y[idx] + y_top[idx]) / 2 + y_offset_abs + offset_frac * band_height
+                    y_label = y_mid
+                    yanchor = "middle"
+                    font_color = label_text_colors.get(trace.name, "white")
+                else:
+                    y_label = y_top[idx] + 0.01 * total_stack_height  # 1% of stack as gap
+                    yanchor = "bottom"
+                    font_color = "#666"
+                window = 3  # years on each side of target
+                start_year = target_year - window
+                end_year = target_year + window
+                try:
+                    start_idx = x_vals.index(start_year)
+                    end_idx = x_vals.index(end_year)
+                    start_y = trace.y[start_idx]
+                    end_y = trace.y[end_idx]
+                    denom = (abs(start_y) + abs(end_y)) / 2
+                    if denom != 0:
+                        slope_ratio = (end_y - start_y) / denom
+                    else:
+                        slope_ratio = 0
+                except ValueError:
+                    slope_ratio = 0
+                textangle = max(min(-slope_ratio * 12, 0), -12)
+                fig.add_annotation(
+                    x=x_pos,
+                    y=y_label,
+                    text=trace.name,
+                    showarrow=False,
+                    xanchor="left",
+                    yanchor=yanchor,
+                    font=dict(size=label_font_size, color=font_color),
+                    yshift=pixel_shift,
+                    textangle=textangle
+                )
+            stacked_y = y_top
+
+    # Only render the chart once, at the end
+    st.plotly_chart(fig, use_container_width=True)
+
+    # Show data table if selected
+    if 'show_data_table' in locals() and show_data_table:
+        st.subheader("Underlying values for chart")
+        st.dataframe(grouped)
+
+    # Download button
+    csv_bytes = grouped.to_csv(index=False).encode('utf-8')
+    st.sidebar.download_button(
+        "Download chart data as CSV",
+        data=csv_bytes,
+        file_name=f"{scenario}_data_{display_unit}.csv",
+        mime="text/csv"
+    )
+
+def Energy_Demand_Grouped():
+    
+    group_colors = {
+    "Transport": "#54AA45",
+    "Building": "#8ED0F2",
+    "Industry": "#C974C7"   
+    }
+    st.markdown(
+        """
+        <style>
+        .stApp { background-color: #fff; color: #222; }
+        </style>
+        """,
+        unsafe_allow_html=True
+    )
+    st.title("NZEST Chart Generator – Grouped Energy Demand")
+
+    # Load scenario and data
+    scenario = st.sidebar.radio("Select Scenario", ["Status-Quo", "Net-Zero (beta)"])
+    fallback = 'SQ_Post_Process.csv' if scenario == 'Status-Quo' else 'NZ_Post_Process.csv'
+    if os.path.exists(fallback):
+        df = load_csv(fallback)
+    else:
+        st.error(f"No CSV for {scenario}.")
+        st.stop()
+    if scenario.startswith("Net-Zero"):
+        df = df[df['Sector'] != "-"]
+
+    # Identify energy column and convert to GJ
+    energy_col = next(c for c in df.columns if c.startswith('Energy'))
+    base_unit = energy_col.split('(')[1].split('/')[0]
+    df['Energy_GJ'] = df[energy_col] * ({'GJ': 1, 'PJ': 1e6}[base_unit])
+
+    # Sidebar filters
+    st.sidebar.header("Filters")
+    provinces = sorted(df['Province'].dropna().unique())
+    provinces_with_all = ["All Canada"] + provinces
+    selected_provinces = st.sidebar.multiselect("Select Provinces", provinces_with_all, default=provinces_with_all)
+    min_y = int(pd.to_numeric(df['Year'], errors='coerce').min())
+    max_y = int(pd.to_numeric(df['Year'], errors='coerce').max())
+    selected_years = st.sidebar.slider("Select Year Range", min_y, max_y, (min_y, max_y))
+    display_unit = st.sidebar.selectbox("Display unit", ["GJ", "TJ", "PJ"], index=["GJ", "TJ", "PJ"].index(base_unit))
+    factor = {'GJ': 1, 'TJ': 1e-3, 'PJ': 1e-6}[display_unit]
+    df['Energy_display'] = df['Energy_GJ'] * factor
+
+    # Group sectors as requested
+    mapping = {
+        "Transport":   "Transport",
+        "Residential": "Building",
+        "Commercial":  "Building",
+        "Industry":    "Industry",
+        "Agriculture": "Industry"
+    }
+    df['Group'] = df['Sector'].map(mapping).fillna("Other")
+
+    # Filter rows by selection
+    if "All Canada" in selected_provinces:
+        df_filtered = df[df['Year'].between(*selected_years)]
+    else:
+        df_filtered = df[
+            df['Year'].between(*selected_years) &
+            df['Province'].isin(selected_provinces)
+        ]
+    grouped = (
+        df_filtered
+        .groupby(['Year', 'Group'])['Energy_display']
+        .sum()
+        .reset_index()
+    )
+    grouped = grouped[grouped['Group'].isin(["Transport", "Building", "Industry"])]
+    label_options = ["Transport", "Building", "Industry"]
+
+    # --- All chart display options and label selector in a single expander ---
+    with st.sidebar.expander("Chart display options", expanded=False):
+        show_cutoff_line = st.checkbox("Show 2022 data/model cutoff", value=False)
+        show_labels = st.checkbox("Show area labels on chart", value=True)
+        show_legend = st.checkbox("Show legend", value=False)
+        label_font_size = st.slider("Label font size", min_value=8, max_value=28, value=16)
+        label_mode = st.radio(
+            "Label mode",
+            options=["Auto", "Manual"],
+            index=0,
+            help="Auto: show labels for large bands automatically. Manual: select which categories to show labels for."
+        )
+        if label_mode == "Manual":
+            show_label_for = st.multiselect(
+                "Show labels for groups", label_options, default=label_options
+            )
+        else:
+            show_label_for = label_options
+        tick_label_font_size = st.slider(
+            "Axis tick label font size", min_value=8, max_value=28, value=12
+        )
+        show_data_table = st.checkbox("Show table of chart values below", value=False)
+
+        # --- Color pickers for each group ---
+        show_trace_colors = st.checkbox("Select trace (fill) colors", value=False)
+        group_color_map = {}
+        if show_trace_colors:
+            st.markdown("**Pick a color for each group:**")
+            for label in label_options:
+                col = group_colors.get(label, "#CCCCCC")
+                picked = st.color_picker(f"Trace color for {label}", col, key=f"grouped_color_{label}")
+                group_color_map[label] = picked
+        else:
+            for label in label_options:
+                group_color_map[label] = group_colors.get(label, "#CCCCCC")
+
+        # --- Label text color pickers ---
+        show_label_text_colors = st.checkbox("Select label text colors (black or white)", value=False)
+        label_text_colors = {}
+        if show_label_text_colors:
+            st.markdown("**Pick black or white for each label's text:**")
+            for label in label_options:
+                txt_col = st.selectbox(
+                    f"Text color for {label}",
+                    options=["white", "black"],
+                    index=0,
+                    key=f"grouped_textcol_{label}"
+                )
+                label_text_colors[label] = txt_col
+        else:
+            for label in label_options:
+                label_text_colors[label] = "white"
+
+    # --- Area chart ---
+    y_label = f"Energy demand ({display_unit}/yr)"
+    import plotly.express as px
+    # Define explicit group order
+    group_order = ["Transport", "Building", "Industry"]
+    fig = px.area(
+        grouped,
+        x='Year',
+        y='Energy_display',
+        color='Group',
+        labels={'Energy_display': y_label, 'Year': 'Year', 'Group': 'Category'},
+        title=f"{scenario} Energy Demand by Category",
+        color_discrete_map=group_color_map,
+        category_orders={'Group': group_order}
+    )
+
+    # Remove area border lines
+    fig.for_each_trace(
+        lambda trace: trace.update(fillcolor=trace.line.color, line=dict(width=0))
+    )
+    fig.update_layout(height=1080)
+    fig.update_xaxes(
+        tickmode='linear',
+        dtick=5,
+        showline=True,
+        linewidth=2,
+        linecolor='black',
+        ticks='outside',
+        ticklen=10,
+        tickwidth=2,
+        tickcolor='black',
+        minor=dict(
+            dtick=1,
+            ticklen=5,
+            tickwidth=2,
+            tickcolor='black',
+            showgrid=False
+        ),
+        mirror=True,
+        tickfont=dict(size=tick_label_font_size),
+        title_font=dict(size=tick_label_font_size)
+    )
+    fig.update_yaxes(
+        tickmode='auto',
+        showline=True,
+        showgrid=True,
+        gridcolor='lightgrey',
+        gridwidth=1,
+        linewidth=2,
+        linecolor='black',
+        ticks='outside',
+        ticklen=10,
+        tickwidth=2,
+        tickcolor='black',
+        minor=dict(
+            ticklen=5,
+            tickwidth=2,
+            tickcolor='black',
+            showgrid=True
+        ),
+        minor_gridcolor='lightgrey',
+        minor_gridwidth=0.5,
+        mirror=True,
+        tickfont=dict(size=tick_label_font_size),
+        title_font=dict(size=tick_label_font_size)
+    )
+    fig.update_layout(
+        title_x=0.5,
+        title_xanchor='center',
+        title_font=dict(size=tick_label_font_size),
+        showlegend=show_legend
+    )
+    if show_cutoff_line:
+        fig.add_vline(
+            x=2022,
+            line_dash="dot",
+            line_color="black",
+            line_width=2,
+            annotation_text="   Historical → Model",
+            annotation_position="top right",
+            annotation_font_size=12
+        )
+
+    # Label logic (inside/outside/none)
+    if show_labels:
+        y_offset_abs  = 0.0
+        offset_frac   = 0.2
+        pixel_shift   = 0
+        min_height_ratio = 0.02  # 2% of total height at target year
+
+        # Choose a mid/future year to place label
+        target_year = 2035 if 2035 in list(grouped['Year'].unique()) else grouped['Year'].max()
+        x_vals = list(fig.data[0].x) if fig.data else []
+        if target_year in x_vals:
+            idx = x_vals.index(target_year)
+        else:
+            idx = len(x_vals) // 2 if x_vals else 0
+        x_pos = x_vals[idx] if x_vals else None
+        total_stack_height = sum(trace.y[idx] for trace in fig.data) if fig.data else 0
+        stacked_y = [0.0] * len(x_vals)
+        auto_show = label_mode == "Auto"
+        manual_show = label_mode == "Manual"
+        for trace in fig.data:
+            y_top = [a + b for a, b in zip(stacked_y, trace.y)]
+            band_height = trace.y[idx]
+            if (
+                (auto_show and band_height / total_stack_height >= min_height_ratio)
+                or (manual_show and trace.name in show_label_for)
+            ):
+                if band_height / total_stack_height >= min_height_ratio:
+                    y_mid = (stacked_y[idx] + y_top[idx]) / 2 + y_offset_abs + offset_frac * band_height
+                    y_label_pos = y_mid
+                    yanchor = "middle"
+                    font_color = label_text_colors.get(trace.name, "white")
+                else:
+                    y_label_pos = y_top[idx] + 0.01 * total_stack_height
+                    yanchor = "bottom"
+                    font_color = "#666"
+                window = 3
+                start_year = x_vals[idx] - window if x_vals else None
+                end_year = x_vals[idx] + window if x_vals else None
+                try:
+                    start_idx = x_vals.index(start_year)
+                    end_idx = x_vals.index(end_year)
+                    start_y = trace.y[start_idx]
+                    end_y = trace.y[end_idx]
+                    denom = (abs(start_y) + abs(end_y)) / 2
+                    slope_ratio = (end_y - start_y) / denom if denom != 0 else 0
+                except Exception:
+                    slope_ratio = 0
+                textangle = max(min(-slope_ratio * 12, 0), -12)
+                if x_pos is not None:
+                    fig.add_annotation(
+                        x=x_pos,
+                        y=y_label_pos,
+                        text=trace.name,
+                        showarrow=False,
+                        xanchor="left",
+                        yanchor=yanchor,
+                        font=dict(size=label_font_size, color=font_color),
+                        yshift=pixel_shift,
+                        textangle=textangle
+                    )
+            stacked_y = y_top
+
+    st.plotly_chart(fig, use_container_width=True)
+
+    if show_data_table:
+        st.subheader("Underlying values for chart")
+        st.dataframe(grouped.pivot(index='Year', columns='Group', values='Energy_display').reset_index())
+    csv_bytes = grouped.to_csv(index=False).encode('utf-8')
+    st.sidebar.download_button(
+        "Download grouped energy data as CSV",
+        data=csv_bytes,
+        file_name=f"{scenario}_energy_grouped_{selected_years[0]}_{selected_years[1]}_{display_unit}.csv",
+        mime="text/csv"
+    )
+
+def Energy_Demand_Bar():
+    st.markdown(
+        """
+        <style>
+        .stApp { background-color: #fff; color: #222; }
+        </style>
+        """,
+        unsafe_allow_html=True
+    )
+    st.title("NZEST Chart Generator")
+
+    # Scenario toggle (no uploader)
+    scenario = st.sidebar.radio("Select Scenario", ["Status-Quo", "Net-Zero (beta)"])
+    fallback = 'SQ_Post_Process.csv' if scenario == 'Status-Quo' else 'NZ_Post_Process.csv'
+    if os.path.exists(fallback):
+        df = load_csv(fallback)
+    else:
+        st.error(f"No CSV for {scenario}.")
+        st.stop()
+    # Filter out placeholder sector "-" for Net-Zero
+    if scenario.startswith("Net-Zero"):
+        df = df[df['Sector'] != "-"]
+
+    # Identify energy column and base unit
+    energy_col = next(c for c in df.columns if c.startswith('Energy'))
+    base_unit = energy_col.split('(')[1].split('/')[0]
+
+    # Sidebar filters
+    st.sidebar.header("Filters")
+    sectors = sorted(df['Sector'].dropna().unique())
+    selected_sectors = st.sidebar.multiselect("Select Sectors", sectors, default=sectors)
+    provinces = sorted(df['Province'].dropna().unique())
+    provinces_with_all = ["All Canada"] + provinces
+    selected_provinces = st.sidebar.multiselect("Select Provinces", provinces_with_all, default=provinces_with_all)
+    years = sorted(pd.to_numeric(df['Year'], errors='coerce').dropna().unique())
+    selected_years = st.sidebar.multiselect("Select up to 5 Years", options=years, default=years[:5], max_selections=5)
+    # Toggle for decarbonisation marker
+    # show_decarb = st.sidebar.checkbox("Show decarbonisation indicator", value=True)
+
+    # Group-by and unit toggle
+    group_map = {
+        "Carrier": "Carrier",
+        "Carrier & Tech": "Tech_name",
+        "Sub Sector": "Tech_subsector"
+    }
+    sel_label = st.sidebar.selectbox("Group by", list(group_map.keys()))
+    dim_col = group_map[sel_label]
+    display_unit = st.sidebar.selectbox("Display unit", ["GJ","TJ","PJ"], index=["GJ","TJ","PJ"].index(base_unit))
+
+
+    # Convert to GJ and apply factor
+    df['Energy_GJ'] = df[energy_col] * ({'GJ':1,'PJ':1e6}[base_unit])
+    factor = {'GJ':1,'TJ':1e-3,'PJ':1e-6}[display_unit]
+    df['Energy_display'] = df['Energy_GJ'] * factor
+
+    # Filter & group with "All Canada" option
+    if "All Canada" in selected_provinces:
+        # Ignore specific province filters and aggregate across all provinces
+        df_filtered = df[
+            df['Sector'].isin(selected_sectors) &
+            df['Year'].isin(selected_years)
+        ]
+    else:
+        df_filtered = df[
+            df['Sector'].isin(selected_sectors) &
+            df['Province'].isin(selected_provinces) &
+            df['Year'].isin(selected_years)
+        ]
+    grouped = df_filtered.groupby(['Year', dim_col])['Energy_display'].sum().reset_index()
+    grouped['Year'] = grouped['Year'].astype(str)
+    # Filter out categories representing <5% of total over the selected range
+    total_by_cat = grouped.groupby(dim_col)['Energy_display'].sum()
+    total_all = total_by_cat.sum()
+    keep_cats = total_by_cat[total_by_cat / total_all >= 0.0001].index
+    grouped = grouped[grouped[dim_col].isin(keep_cats)]
+
+    # --- All chart display options and label selector in a single expander ---
+    with st.sidebar.expander("Chart display options", expanded=False):
+        show_labels = st.checkbox("Show area/bar labels on chart", value=True)
+        show_legend = st.checkbox("Show legend", value=False)
+        show_decarb = st.checkbox("Show decarbonisation indicator", value=True)
+        label_font_size = st.slider("Label font size", min_value=8, max_value=28, value=16)
+        label_mode = st.radio(
+            "Label mode",
+            options=["Auto", "Manual"],
+            index=0,
+            help="Auto: show labels for large bars automatically. Manual: select which categories to show labels for."
+        )
+        if not grouped.empty and dim_col in grouped.columns:
+            label_options = sorted(grouped[dim_col].unique())
+            if label_mode == "Manual":
+                show_label_for = st.multiselect(
+                    f"Show labels for {sel_label}s", label_options, default=label_options
+                )
+            else:
+                show_label_for = label_options
+        else:
+            label_options, show_label_for = [], []
+            st.warning("No categories available for label selection with current filters.")
+        # Add tick label font size slider at the end
+        tick_label_font_size = st.slider(
+            "Axis tick label font size", min_value=8, max_value=28, value=12
+        )
+        # Add data table checkbox
+        show_data_table = st.checkbox("Show table of chart values below", value=False)
+
+        # --- BEGIN: Per-label color logic ---
+        import random
+        def random_hex():
+            return "#{:06x}".format(random.randint(0, 0xFFFFFF))
+
+        # --- Trace (fill) colors toggle ---
+        show_trace_colors = st.checkbox("Select trace (fill) colors", value=False)
+        label_colors = {}
+        default_map = carrier_colors if sel_label == "Carrier" else carrier_colors
+        if show_trace_colors and label_options:
+            st.markdown("**Pick a color for each label's area/trace:**")
+            for label in label_options:
+                col = default_map.get(label, random_hex())
+                picked = st.color_picker(f"Trace color for {label}", col, key=f"bar_color_{sel_label}_{label}")
+                label_colors[label] = picked
+        elif label_options:
+            for label in label_options:
+                label_colors[label] = default_map.get(label, random_hex())
+
+        # --- Label text colors toggle ---
+        show_label_text_colors = st.checkbox("Select label text colors (black or white)", value=False)
+        label_text_colors = {}
+        if show_label_text_colors and label_options:
+            st.markdown("**Pick black or white for each label's text:**")
+            for label in label_options:
+                txt_col = st.selectbox(
+                    f"Text color for {label}",
+                    options=["white", "black"],
+                    index=0,
+                    key=f"bar_textcol_{sel_label}_{label}"
+                )
+                label_text_colors[label] = txt_col
+        elif label_options:
+            for label in label_options:
+                label_text_colors[label] = "white"
+        # --- END: Per-label color logic ---
+
+    # Plot
+    y_label = f"Energy demand ({display_unit}/yr)"
+    fig = px.bar(
+        grouped,
+        x='Year',
+        y='Energy_display',
+        color=dim_col,
+        text=dim_col,  # add this line
+        labels={'Energy_display': y_label, 'Year':'Year', dim_col:sel_label},
+        title=f"{scenario} {y_label} by {sel_label} for sectors: {', '.join(selected_sectors)}",
+        category_orders={dim_col: stack_order},
+        color_discrete_map=label_colors,
+    )
+
+    # Compute stack heights for each x (Year) before the label loop
+    from collections import defaultdict  # already imported at top; harmless re-import
+    # Build total stack height per Year so we can compare each bar to its stack
+    stack_heights = defaultdict(float)
+    for t in fig.data:
+        for x_val, y_val in zip(t.x, t.y):
+            stack_heights[str(x_val)] += y_val
+
+    threshold = 0.05        # bar must be ≥ 5 % of its stack to be considered
+    inside_threshold = 0.10  # bar must be ≥ 10 % of its stack to keep the label *inside*
+
+    auto_show = label_mode == "Auto"
+    manual_show = label_mode == "Manual"
+    for trace in fig.data:
+        positions = []
+        texts = []
+        for x_val, y_val, t_text in zip(trace.x, trace.y, trace.text):
+            stack = stack_heights[str(x_val)]
+            rel = y_val / stack if stack > 0 else 0
+            label_name = t_text if isinstance(t_text, str) else trace.name
+            show = (
+                (auto_show and rel >= threshold)
+                or (manual_show and label_name in show_label_for)
+            )
+            if show:
+                # If bar is < 1 (in displayed unit), force the label outside
+                if y_val < 1:
+                    positions.append("outside")
+                else:
+                    positions.append("inside" if rel >= inside_threshold else "outside")
+                texts.append(label_name)
+            else:
+                positions.append("none")
+                texts.append(" ")  # keep hover active with a space
+
+        trace.textposition = positions
+        trace.text = texts
+        trace.texttemplate = "%{text} %{y:.0f} (" + display_unit + "/yr)"
+        trace.insidetextanchor = "middle"
+        trace.textfont = dict(size=label_font_size, color=label_text_colors.get(trace.name, "white"))
+        trace.width = 0.54
+        trace.hovertemplate = (
+            "Year: %{x}<br>"
+            f"{y_label}: "+"%{y:.3f}<br>"
+            f"{sel_label}: {trace.name}<extra></extra>"
+        )
+
+    # Hide bar labels if show_labels is False
+    if not show_labels:
+        fig.update_traces(text="", textposition="none")
+
+    # (Removed redundant fillcolor/line update for bar chart)
+    fig.update_layout(height=800)
+    # Configure major and minor ticks on axes
+    fig.update_xaxes(
+        type='category',
+        categoryorder='array',
+        categoryarray=list(grouped['Year']),
+        showline=True,
+        linewidth=2,
+        linecolor='black',
+        ticks='outside',
+        ticklen=10,
+        tickwidth=2,
+        tickcolor='black',
+        mirror=True,
+        tickfont=dict(size=tick_label_font_size),
+        title_font=dict(size=tick_label_font_size)
+    )
+    fig.update_yaxes(
+        tickmode='auto',
+        showline=True,
+        showgrid=True,
+        gridcolor='lightgrey',
+        gridwidth=1,
+        linewidth=2,
+        linecolor='black',
+        ticks='outside',
+        ticklen=10,
+        tickwidth=2,
+        tickcolor='black',
+        minor=dict(
+            ticklen=5,
+            tickwidth=2,
+            tickcolor='black',
+            showgrid=False
+        ),
+        mirror=True,
+        tickfont=dict(size=tick_label_font_size),
+        title_font=dict(size=tick_label_font_size)
+    )
+
+    # Center title and set font size to match tick_label_font_size
+    fig.update_layout(
+        title_x=0.5,
+        title_xanchor='center',
+        title_font=dict(size=tick_label_font_size)
+    )
+
+    # 1) Show/hide the legend as per sidebar
+    fig.update_layout(showlegend=show_legend)
+
+    if show_decarb:
+        # Add decarbonisation indicator: sum of specific fossil carriers for each year
+        fossil_carriers = ["Coal", "HFO", "LFO",
+                           "Diesel", "R-Diesel", "Gasoline", "Jet Fuel",
+                           "Prop", "NG", "Plastics"]
+        decarb = grouped[grouped[dim_col].isin(fossil_carriers)] \
+                  .groupby('Year')['Energy_display'].sum().reset_index()
+        # Add marker trace for decarbonisation amount
+        fig.add_trace(go.Scatter(
+            x=decarb['Year'],
+            y=decarb['Energy_display'],
+            mode='markers+text',
+            text=[f"{val:.1f} ({display_unit}/yr)" for val in decarb['Energy_display']],
+            textposition="middle right",
+            textfont=dict(size=label_font_size, color="black"),
+            marker=dict(symbol='triangle-down', size=20, color='black'),
+            name='To Decarbonise'
+        ))
+        # Enable legend to show the decarbonisation indicator
+        fig.update_layout(showlegend=show_legend)
+
+    # Slight right margin to avoid clipping the line
+    fig.update_layout(margin=dict(r=20))
+
+    # Prevent Plotly from shrinking outside labels
+    fig.update_layout(
+        uniformtext=dict(
+            minsize=label_font_size,
+            mode="show"  # keep text at least this size
+        )
+    )
+
+    # Download button
+    csv_bytes = grouped.to_csv(index=False).encode('utf-8')
+    st.sidebar.download_button(
+        "Download chart data as CSV",
+        data=csv_bytes,
+        file_name=f"{scenario}_data_{display_unit}.csv",
+        mime="text/csv"
+    )
+    
+    st.plotly_chart(fig, use_container_width=True)
+    if show_data_table:
+        st.subheader("Underlying values for chart")
+        st.dataframe(grouped)
+
+def GHG_Graph():
+    st.markdown(
+        """
+        <style>
+        .stApp { background-color: #fff; color: #222; }
+        </style>
+        """,
+        unsafe_allow_html=True
+    )
+    st.title("NZEST Chart Generator")
+    Path = "GHG_Data.csv"
+    df_ghg = pd.read_csv(Path)
+    df_ghg = df_ghg.melt(id_vars=['Sector', 'Sub-Sector', 'Use', 'Province']
+                            ,value_vars=([str(year) for year in range(1990,2024)])
+                            ,var_name= 'year'
+                            ,value_name="GHG")
+    # Ensure GHG values are numeric
+    df_ghg['GHG'] = pd.to_numeric(df_ghg['GHG'], errors='coerce')
+    
+    # Sidebar filters
+    st.sidebar.header("Filters")
+    # Year range slider
+    min_year = int(df_ghg['year'].min())
+    max_year = int(df_ghg['year'].max())
+    selected_years = st.sidebar.slider("Select Year Range", min_year, max_year, (min_year, max_year))
+   
+    # Province filter
+    provinces = sorted(df_ghg['Province'].dropna().unique())
+    provinces_with_all = ["All Canada"] + provinces
+    selected_provinces = st.sidebar.multiselect("Select Provinces", provinces_with_all, default=provinces_with_all)
+
+    # Unit selector
+    unit_map = {"MtCO₂e": "MtCO₂e", "GtCO₂e": "GtCO₂e"}
+    unit_sel = st.sidebar.selectbox("Display unit", list(unit_map.keys()))
+    # Grouping selector
+    
+    group_map = {"Sector": "Sector", "Sub-Sector": "Sub-Sector", "Use": "Use"}
+    sel_label = st.sidebar.selectbox("Group by", list(group_map.keys()))
+    dim_col = group_map[sel_label]
+
+    # Chart display options in a single expander
+    with st.sidebar.expander("Chart display options", expanded=False):
+        show_labels = st.checkbox("Show area/bar labels on chart", value=True)
+        show_legend = st.checkbox("Show legend", value=False)
+        label_font_size = st.slider("Label font size", min_value=8, max_value=28, value=16)
+        # Label mode and selector logic
+        label_options = sorted(df_ghg[dim_col].dropna().unique())
+        label_mode = st.radio(
+            "Label mode",
+            options=["Auto", "Manual"],
+            index=0,
+            help="Auto: show labels for large bands automatically. Manual: select which categories to show labels for."
+        )
+        if label_mode == "Manual":
+            show_label_for = st.multiselect(
+                f"Show labels for {sel_label}s", label_options, default=label_options
+            )
+        else:
+            show_label_for = label_options
+        tick_label_font_size = st.slider(
+            "Axis tick label font size", min_value=8, max_value=28, value=12
+        )
+        show_data_table = st.checkbox("Show table of chart values below", value=False)
+
+        # --- BEGIN: Per-label color logic ---
+        # Default color mapping for GHG categories (populate this dictionary as needed)
+        label_colors_default = {
+             "Buildings": "#9C1414",
+             "Agric": "#aeaeae",
+             "Energy Sector":"#18506B",
+             "Ind Processes":"#747474",
+             "Non Energy Ind": "#C56060",
+             "Transport":"#ECC10B",
+             "Waste": "#d1d1d1",
+             "End use Combustion of Energy Carriers":"#225f99",
+             "Production of Energy Carriers":"#c00000",
+             "Non-Energy Emissions":"#78206e",
+             "Electricity":"#FFBF00",
+             "Oil and Gas":"#c00000",
+                "Commercial": "#6C1D1D",
+                "Residential": "#a64d79",
+                "Air": "#167a0a",
+                "Road": "#7ee183",
+                "Off Road": "#1dce39",
+                "Rail": "#219a2c",
+                "Marine": "#20842e"
+           
+        }
+
+        label_options = sorted(df_ghg[dim_col].dropna().unique())
+
+        # --- Trace (fill) colors toggle ---
+        show_trace_colors = st.checkbox("Select trace (fill) colors", value=False)
+        label_colors = {}
+        if show_trace_colors and label_options:
+            st.markdown("**Pick a color for each label's area/trace:**")
+            for label in label_options:
+                col = label_colors_default.get(label, "#CCCCCC")
+                picked = st.color_picker(f"Trace color for {label}", col, key=f"ghg_color_{sel_label}_{label}")
+                label_colors[label] = picked
+        elif label_options:
+            for label in label_options:
+                label_colors[label] = label_colors_default.get(label, "#CCCCCC")
+
+        # --- Label text colors toggle ---
+        show_label_text_colors = st.checkbox("Select label text colors (black or white)", value=False)
+        label_text_colors = {}
+        if show_label_text_colors and label_options:
+            st.markdown("**Pick black or white for each label's text:**")
+            for label in label_options:
+                txt_col = st.selectbox(
+                    f"Text color for {label}",
+                    options=["white", "black"],
+                    index=0,
+                    key=f"ghg_textcol_{sel_label}_{label}"
+                )
+                label_text_colors[label] = txt_col
+        elif label_options:
+            for label in label_options:
+                label_text_colors[label] = "white"
+        # --- END: Per-label color logic ---
+
+    # Dimension filter based on grouping
+    dim_options = sorted(df_ghg[dim_col].dropna().unique())
+
+    # Filter dataframe
+    if "All Canada" in selected_provinces:
+        # Ignore province filtering, aggregate across all provinces
+        df_filtered = df_ghg[
+            df_ghg['year'].astype(int).between(selected_years[0], selected_years[1])
+        ]
+    else:
+        df_filtered = df_ghg[
+            df_ghg['Province'].isin(selected_provinces) &
+            df_ghg['year'].astype(int).between(selected_years[0], selected_years[1])
+        ]
+    # Aggregate
+    grouped = df_filtered.groupby(['year', dim_col])['GHG'].sum().reset_index()
+    grouped['year'] = grouped['year'].astype(int)
+
+    # Convert from kilotonnes (kt) to Mt or Gt as selected
+    # Data is in kilotonnes: 1 Mt = 1,000 kt; 1 Gt = 1,000,000 kt
+    factor = {"MtCO₂e": 1e-3, "GtCO₂e": 1e-6}[unit_sel]
+    grouped['GHG'] = grouped['GHG'] * factor
+
+    # Plot
+    y_label = f"GHG Emissions ({unit_sel}/yr)"
+    fig = px.area(
+        grouped,
+        x='year',
+        y='GHG',
+        color=dim_col,
+        labels={'GHG': y_label, 'year': 'Year', dim_col: sel_label},
+        title=f"GHG Emissions by {sel_label}",
+        color_discrete_map=label_colors,
+    )
+    # Apply styling similar to Energy Demand
+    fig.for_each_trace(lambda trace: trace.update(fillcolor=trace.line.color, line=dict(width=0)))
+    fig.update_layout(
+        height=1080,
+        title_x=0.5,
+        title_xanchor='center',
+        title_font=dict(size=tick_label_font_size),
+        margin=dict(r=50),
+    )
+    fig.update_xaxes(
+        tickmode='auto',
+        showline=True,
+        linewidth=2,
+        linecolor='black',
+        ticks='outside',
+        ticklen=10,
+        tickwidth=2,
+        tickcolor='black',
+        minor=dict(dtick=1, ticklen=5, tickwidth=2, tickcolor='black', showgrid=False),
+        mirror=True,  # only left and bottom axes have ticks/lines
+        tickfont=dict(size=tick_label_font_size),
+        title_font=dict(size=tick_label_font_size)
+    )
+    fig.update_yaxes(
+        showline=True,
+        showgrid=True,
+        gridcolor='lightgrey',
+        gridwidth=1,
+        linewidth=2,
+        linecolor='black',
+        ticks='outside',
+        ticklen=10,
+        tickwidth=2,
+        tickcolor='black',
+        minor=dict(ticklen=5, tickwidth=2, tickcolor='black', showgrid=True),
+        minor_gridcolor='lightgrey',
+        minor_gridwidth=0.5,
+        mirror=True,  # only left and bottom axes have ticks/lines
+        tickfont=dict(size=tick_label_font_size),
+        title_font=dict(size=tick_label_font_size)
+    )
+
+    # Set legend visibility based on sidebar
+    fig.update_layout(showlegend=show_legend)
+
+    # Optional: Area label annotations
+    if show_labels:
+        y_offset_abs  = 0.0
+        offset_frac   = 0.2
+        pixel_shift   = 0
+        min_height_ratio = 0.07  # 7% threshold
+
+        # 3) Identify the x-position to place the label at the midpoint of the visible years
+        if not fig.data:
+            st.warning("No data available for the current selection.")
+            return
+        x_vals = list(fig.data[0].x)
+        if not x_vals:
+            st.warning("No x-values available for plotting.")
+            return
+        mid_idx = len(x_vals) // 2  # lower mid for even length, standard
+        idx = mid_idx
+        x_pos = x_vals[idx]
+
+        # 4) Compute total stack height at target year
+        total_stack_height = sum(trace.y[idx] for trace in fig.data)
+
+        # 5) Loop through traces and annotate
+        stacked_y = [0.0] * len(x_vals)
+
+        auto_show = label_mode == "Auto"
+        manual_show = label_mode == "Manual"
+        for trace in fig.data:
+            y_top = [a + b for a, b in zip(stacked_y, trace.y)]
+            band_height = trace.y[idx]
+            band_ratio = band_height / total_stack_height if total_stack_height != 0 else 0
+
+            if (
+                (auto_show and band_ratio >= min_height_ratio)
+                or (manual_show and trace.name in show_label_for)
+            ):
+                if band_ratio >= min_height_ratio:
+                    # Label inside the band (centered, color from label_text_colors)
+                    y_mid = (stacked_y[idx] + y_top[idx]) / 2 + y_offset_abs + offset_frac * band_height
+                    y_label = y_mid
+                    yanchor = "middle"
+                    font_color = label_text_colors.get(trace.name, "white")
+                else:
+                    # Label above the band (grey)
+                    y_label = y_top[idx] + 0.01 * total_stack_height  # 1% of stack as gap
+                    yanchor = "bottom"
+                    font_color = "#666"
+
+                # Slope/angle logic (unchanged)
+                window = 3
+                start_year = x_vals[idx] - window
+                end_year = x_vals[idx] + window
+                try:
+                    start_idx = x_vals.index(start_year)
+                    end_idx = x_vals.index(end_year)
+                    start_y = trace.y[start_idx]
+                    end_y = trace.y[end_idx]
+                    denom = (abs(start_y) + abs(end_y)) / 2
+                    slope_ratio = (end_y - start_y) / denom if denom != 0 else 0
+                except ValueError:
+                    slope_ratio = 0
+
+                textangle = max(min(-slope_ratio * 12, 0), -12)
+
+                fig.add_annotation(
+                    x=x_pos,
+                    y=y_label,
+                    text=trace.name,
+                    showarrow=False,
+                    xanchor="left",
+                    yanchor=yanchor,
+                    font=dict(size=label_font_size, color=font_color),
+                    yshift=pixel_shift,
+                    textangle=textangle
+                )
+
+            stacked_y = y_top
+
+    # Render plot and download
+    st.plotly_chart(fig, use_container_width=True)
+    if show_data_table:
+        st.subheader("Underlying values for chart")
+        st.dataframe(grouped)
+    csv_bytes = grouped.to_csv(index=False).encode('utf-8')
+    st.sidebar.download_button(
+        "Download GHG data as CSV",
+        data=csv_bytes,
+        file_name=f"GHG_Emissions_{sel_label}_{unit_sel}_{selected_years[0]}_{selected_years[1]}.csv",
+        mime="text/csv"
+    )
+
+def Carbon_content_Bar():
+    st.markdown(
+        """
+        <style>
+        .stApp { background-color: #fff; color: #222; }
+        </style>
+        """,
+        unsafe_allow_html=True
+    )
+    st.title("NZEST Carbon Content Chart")
+
+    # Scenario toggle (no uploader)
+    scenario = st.sidebar.radio("Select Scenario", ["Status-Quo", "Net-Zero (beta)"])
+    fallback = 'SQ_Post_Process.csv' if scenario == 'Status-Quo' else 'NZ_Post_Process.csv'
+    if os.path.exists(fallback):
+        df = load_csv(fallback)
+    else:
+        st.error(f"No CSV for {scenario}.")
+        st.stop()
+    # Filter out placeholder sector "-" for Net-Zero
+    if scenario.startswith("Net-Zero"):
+        df = df[df['Sector'] != "-"]
+
+    # Filter out empty/null/zero carbon content
+    df = df[df['Carbon Content MT c'].notna() & (df['Carbon Content MT c'] > 0)]
+
+    # Sidebar filters
+    st.sidebar.header("Filters")
+    sectors = sorted(df['Sector'].dropna().unique())
+    selected_sectors = st.sidebar.multiselect("Select Sectors", sectors, default=sectors)
+    provinces = sorted(df['Province'].dropna().unique())
+    provinces_with_all = ["All Canada"] + provinces
+    selected_provinces = st.sidebar.multiselect("Select Provinces", provinces_with_all, default=provinces_with_all)
+    years = sorted(pd.to_numeric(df['Year'], errors='coerce').dropna().unique())
+    selected_years = st.sidebar.multiselect("Select up to 5 Years", options=years, default=years[:5], max_selections=5)
+
+    # Group-by toggle
+    group_map = {
+        "Carrier": "Carrier",
+        "Carrier & Tech": "Tech_name",
+        "Sub Sector": "Tech_subsector"
+    }
+    sel_label = st.sidebar.selectbox("Group by", list(group_map.keys()))
+    dim_col = group_map[sel_label]
+
+    # --- All chart display options and label selector in a single expander ---
+    with st.sidebar.expander("Chart display options", expanded=False):
+        show_labels = st.checkbox("Show bar labels on chart", value=True)
+        show_legend = st.checkbox("Show legend", value=False)
+        label_font_size = st.slider("Label font size", min_value=8, max_value=28, value=16)
+        label_mode = st.radio(
+            "Label mode",
+            options=["Auto", "Manual"],
+            index=0,
+            help="Auto: show labels for large bars automatically. Manual: select which categories to show labels for."
+        )
+        if not df.empty:
+            # Filter & group (for label options)
+            if "All Canada" in selected_provinces:
+                df_filtered_tmp = df[
+                    df['Sector'].isin(selected_sectors) &
+                    df['Year'].isin(selected_years)
+                ]
+            else:
+                df_filtered_tmp = df[
+                    df['Sector'].isin(selected_sectors) &
+                    df['Province'].isin(selected_provinces) &
+                    df['Year'].isin(selected_years)
+                ]
+            grouped_tmp = df_filtered_tmp.groupby(['Year', dim_col])['Carbon Content MT c'].sum().reset_index()
+            grouped_tmp['Year'] = grouped_tmp['Year'].astype(str)
+            total_by_cat_tmp = grouped_tmp.groupby(dim_col)['Carbon Content MT c'].sum()
+            total_all_tmp = total_by_cat_tmp.sum()
+            keep_cats_tmp = total_by_cat_tmp[total_by_cat_tmp / total_all_tmp >= 0.0001].index
+            grouped_tmp = grouped_tmp[grouped_tmp[dim_col].isin(keep_cats_tmp)]
+            if not grouped_tmp.empty and dim_col in grouped_tmp.columns:
+                label_options = sorted(grouped_tmp[dim_col].unique())
+                if label_mode == "Manual":
+                    show_label_for = st.multiselect(
+                        f"Show labels for {sel_label}s", label_options, default=label_options
+                    )
+                else:
+                    show_label_for = label_options
+            else:
+                label_options, show_label_for = [], []
+                st.warning("No categories available for label selection with current filters.")
+        else:
+            label_options, show_label_for = [], []
+            st.warning("No categories available for label selection with current filters.")
+        # Add tick label font size slider at the end
+        tick_label_font_size = st.slider(
+            "Axis tick label font size", min_value=8, max_value=28, value=12
+        )
+        # Add data table checkbox
+        show_data_table = st.checkbox("Show table of chart values below", value=False)
+
+        # --- BEGIN: Per-label color logic ---
+        # --- Trace (fill) colors toggle ---
+        show_trace_colors = st.checkbox("Select trace (fill) colors", value=False)
+        label_colors = {}
+        default_map = carrier_colors if sel_label == "Carrier" else carrier_colors
+        if show_trace_colors and label_options:
+            st.markdown("**Pick a color for each label's area/trace:**")
+            for label in label_options:
+                col = default_map.get(label, None)
+                picked = st.color_picker(f"Trace color for {label}", col if col is not None else "#636efa", key=f"carbon_color_{sel_label}_{label}")
+                label_colors[label] = picked
+        elif label_options:
+            for label in label_options:
+                col = default_map.get(label, None)
+                if col is not None:
+                    label_colors[label] = col
+                # If no color found, don't assign; let Plotly use its default
+
+        # --- Label text colors toggle ---
+        show_label_text_colors = st.checkbox("Select label text colors (black or white)", value=False)
+        label_text_colors = {}
+        if show_label_text_colors and label_options:
+            st.markdown("**Pick black or white for each label's text:**")
+            for label in label_options:
+                txt_col = st.selectbox(
+                    f"Text color for {label}",
+                    options=["white", "black"],
+                    index=0,
+                    key=f"carbon_textcol_{sel_label}_{label}"
+                )
+                label_text_colors[label] = txt_col
+        elif label_options:
+            for label in label_options:
+                label_text_colors[label] = "white"
+        # --- END: Per-label color logic ---
+
+    # Filter & group
+    if "All Canada" in selected_provinces:
+        df_filtered = df[
+            df['Sector'].isin(selected_sectors) &
+            df['Year'].isin(selected_years)
+        ]
+    else:
+        df_filtered = df[
+            df['Sector'].isin(selected_sectors) &
+            df['Province'].isin(selected_provinces) &
+            df['Year'].isin(selected_years)
+        ]
+    grouped = df_filtered.groupby(['Year', dim_col])['Carbon Content MT c'].sum().reset_index()
+    grouped['Year'] = grouped['Year'].astype(str)
+    # Filter out categories representing <5% of total for clarity
+    total_by_cat = grouped.groupby(dim_col)['Carbon Content MT c'].sum()
+    total_all = total_by_cat.sum()
+    keep_cats = total_by_cat[total_by_cat / total_all >= 0.0001].index
+    grouped = grouped[grouped[dim_col].isin(keep_cats)]
+
+    # Plot
+    y_label = "Carbon Content (MT C/yr)"
+    fig = px.bar(
+        grouped,
+        x='Year',
+        y='Carbon Content MT c',
+        color=dim_col,
+        text=dim_col,
+        labels={'Carbon Content MT c': y_label, 'Year': 'Year', dim_col: sel_label},
+        title=f"{scenario} {y_label} by {sel_label} for sectors: {', '.join(selected_sectors)}",
+        color_discrete_map=label_colors,
+        category_orders={dim_col: stack_order},
+    )
+
+    # Compute stack heights for each x (Year)
+    from collections import defaultdict
+    stack_heights = defaultdict(float)
+    for t in fig.data:
+        for x, y in zip(t.x, t.y):
+            stack_heights[str(x)] += y
+    threshold = 0.05  # 5% of stack at each x, matching Industry_Sector_Bar
+    inside_threshold = 0.10  # need at least 10 % of the stack to keep the label inside
+
+    auto_show = label_mode == "Auto"
+    manual_show = label_mode == "Manual"
+    for trace in fig.data:
+        positions = []
+        texts = []
+        for x, y, t in zip(trace.x, trace.y, trace.text):
+            stack = stack_heights[str(x)]
+            rel = y / stack if stack > 0 else 0
+            label_name = t if isinstance(t, str) else trace.name
+            show = (
+                (auto_show and rel >= threshold)
+                or (manual_show and label_name in show_label_for)
+            )
+            if show:
+                min_abs_height = 1                      # absolute threshold (MT C/yr)
+                min_px_height  = label_font_size * 0.03 # rough bar‑height (in data units) needed to fit the text
+
+                # Decide where to place the label
+                if y < min_abs_height or y < min_px_height:
+                    # Bar too small (either in absolute terms or relative to chosen font) → put text above
+                    positions.append("outside")
+                else:
+                    positions.append("inside" if rel >= inside_threshold else "outside")
+
+                texts.append(label_name)
+            else:
+                positions.append("none")
+                texts.append(" ")  # keep hover active with a space
+        trace.textposition = positions
+        trace.text = texts
+        trace.texttemplate = "%{text} %{y:.1f} (MT C/yr)"
+        trace.insidetextanchor = "middle"
+        trace.textfont = dict(size=label_font_size, color=label_text_colors.get(trace.name, "white"))
+        trace.width = 0.54
+        # Set custom hovertemplate always
+        trace.hovertemplate = (
+            "Year: %{x}<br>"
+            f"{y_label}: "+"%{y:.3f}<br>"
+            f"{sel_label}: {trace.name}<extra></extra>"
+        )
+
+    if not show_labels:
+        fig.update_traces(text="", textposition="none")
+
+    # Do not set uniformtext or update textfont/textposition globally after the above per-trace logic.
+    fig.update_layout(
+        height=800,
+        title_x=0.5,
+        title_xanchor='center',
+        title_font=dict(size=tick_label_font_size),
+        showlegend=show_legend,
+        margin=dict(r=20)
+    )
+    # Prevent Plotly from shrinking outside labels
+    fig.update_layout(
+        uniformtext=dict(
+            minsize=label_font_size,
+            mode="show"      # keep text at least `minsize`; never shrink
+        )
+    )
+    fig.update_xaxes(
+        type='category',
+        categoryorder='array',
+        categoryarray=list(grouped['Year']),
+        showline=True,
+        linewidth=2,
+        linecolor='black',
+        ticks='outside',
+        ticklen=10,
+        tickwidth=2,
+        tickcolor='black',
+        mirror=True,
+        tickfont=dict(size=tick_label_font_size),
+        title_font=dict(size=tick_label_font_size)
+    )
+    fig.update_yaxes(
+        tickmode='auto',
+        showline=True,
+        showgrid=True,
+        gridcolor='lightgrey',
+        gridwidth=1,
+        linewidth=2,
+        linecolor='black',
+        ticks='outside',
+        ticklen=10,
+        tickwidth=2,
+        tickcolor='black',
+        mirror=True,
+        tickfont=dict(size=tick_label_font_size),
+        title_font=dict(size=tick_label_font_size)
+    )
+
+    # Download button for CSV
+    csv_bytes = grouped.to_csv(index=False).encode('utf-8')
+    st.sidebar.download_button(
+        "Download carbon content data as CSV",
+        data=csv_bytes,
+        file_name=f"{scenario}_carbon_content_{'_'.join(selected_sectors)}.csv",
+        mime="text/csv"
+    )
+
+    st.plotly_chart(fig, use_container_width=True)
+    if show_data_table:
+        st.subheader("Underlying values for chart")
+        st.dataframe(grouped)
+
+
+tech_subsector_to_group = {}
+# Manufacturing
+manufacturing_list = [
+    "Alum_fs", "Alum_md", "Alum_op", "Alum_ph", "Alum_tr",
+    "Cement_fs", "Cement_md", "Cement_op", "Cement_ph", "Cement_tr",
+    "Chem_fs", "Chem_md", "Chem_op", "Chem_pg", "Chem_ph", "Chem_tr",
+    "Const_pg", "Const_ph", "Const_tr",
+    "I&S_fs", "I&S_md", "I&S_op", "I&S_pg", "I&S_ph", "I&S_tr",
+    "Manuf_fs", "Manuf_md", "Manuf_op", "Manuf_pg", "Manuf_ph", "Manuf_tr",
+    "Smelt_fs", "Smelt_md", "Smelt_op", "Smelt_ph", "Smelt_tr",
+    "p&p_fs", "p&p_md", "p&p_op", "p&p_pg", "p&p_ph", "p&p_tr"
+]
+for code in manufacturing_list:
+    tech_subsector_to_group[code] = "Manufacturing"
+# Extractive Industry
+extractive_list = [
+    "Cu mine_fs", "Cu mine_md", "Cu mine_op", "Cu mine_pg", "Cu mine_ph", "Cu mine_tr",
+    "Forest_pg", "Forest_ph", "Forest_tr",
+    "G&S mine_fs", "G&S mine_md", "G&S mine_op", "G&S mine_pg", "G&S mine_ph", "G&S mine_tr",
+    "I mine_fs", "I mine_md", "I mine_op", "I mine_pg", "I mine_ph", "I mine_tr",
+    "O non-met_md", "O non-met_pg", "O non-met_tr",
+    "K mine_fs", "K mine_md", "K mine_ph", "K mine_tr",
+    "O metal_fs", "O metal_md", "O metal_op", "O metal_pg", "O metal_ph", "O metal_tr",
+    "O non-met_fs", "O non-met_ph",
+    "Salt_fs", "Salt_md", "Salt_ph", "Salt_tr"
+]
+for code in extractive_list:
+    tech_subsector_to_group[code] = "Extractive Industry"
+
+def Grouped_Industry_Bar():
+    import plotly.express as px
+    st.markdown(
+        """
+        <style>
+        .stApp { background-color: #fff; color: #222; }
+        </style>
+        """,
+        unsafe_allow_html=True
+    )
+    st.title("NZEST Grouped Industry Bar Chart")
+
+    scenario = st.sidebar.radio("Select Scenario", ["Status-Quo", "Net-Zero (beta)"])
+    fallback = 'SQ_Post_Process.csv' if scenario == 'Status-Quo' else 'NZ_Post_Process.csv'
+    if os.path.exists(fallback):
+        df = load_csv(fallback)
+    else:
+        st.error(f"No CSV for {scenario}.")
+        st.stop()
+    if scenario.startswith("Net-Zero"):
+        df = df[df['Sector'] != "-"]
+
+    energy_col = next(c for c in df.columns if c.startswith('Energy'))
+    base_unit = energy_col.split('(')[1].split('/')[0]
+    df['Energy_GJ'] = df[energy_col] * ({'GJ': 1, 'PJ': 1e6}[base_unit])
+
+    provinces = sorted(df['Province'].dropna().unique())
+    provinces_with_all = ["All Canada"] + provinces
+    selected_provinces = st.sidebar.multiselect("Select Provinces", provinces_with_all, default=provinces_with_all)
+    years = sorted(pd.to_numeric(df['Year'], errors='coerce').dropna().unique())
+    selected_year = st.sidebar.selectbox("Select Year", years)
+    display_unit = st.sidebar.selectbox("Display unit", ["GJ", "TJ", "PJ"], index=["GJ", "TJ", "PJ"].index(base_unit))
+    factor = {'GJ': 1, 'TJ': 1e-3, 'PJ': 1e-6}[display_unit]
+    df['Energy_display'] = df['Energy_GJ'] * factor
+
+    # Use the explicit mapping for grouping
+    manufacturing_codes = {k for k, v in tech_subsector_to_group.items() if v == "Manufacturing"}
+    extractive_codes = {k for k, v in tech_subsector_to_group.items() if v == "Extractive Industry"}
+
+    st.sidebar.header("Industry Comparison Bar")
+    selectable_cats = list(category_mapping.keys())
+    default_cat = "Cement" if "Cement" in selectable_cats else selectable_cats[0]
+    selected_cat = st.sidebar.selectbox("Select specific industry to extract and compare", selectable_cats, index=selectable_cats.index(default_cat))
+    selected_codes = category_mapping[selected_cat]
+
+    # Filter year and province
+    if "All Canada" in selected_provinces:
+        df_year = df[df['Year'] == selected_year]
+    else:
+        df_year = df[(df['Year'] == selected_year) & (df['Province'].isin(selected_provinces))]
+
+    # Determine if the selected sector is manufacturing or extractive using mapping
+    selected_cat_codes = category_mapping[selected_cat]
+    selected_cat_group = tech_subsector_to_group.get(selected_cat_codes[0], None)
+
+    # Debug: warn if mapping is incomplete
+    missing_in_mapping = [code for code in selected_cat_codes if code not in tech_subsector_to_group]
+    if missing_in_mapping:
+        st.warning(f"The following selected sector codes are missing from tech_subsector_to_group mapping: {missing_in_mapping}")
+
+    df_codes_missing = set(df_year['Tech_subsector'].unique()) - set(tech_subsector_to_group.keys())
+    if df_codes_missing:
+        st.warning(f"The following Tech_subsector codes in your data are missing from tech_subsector_to_group: {sorted(df_codes_missing)}")
+
+    # Assign group logic
+    def assign_group(row):
+        if row['Tech_subsector'] in selected_codes:
+            return selected_cat
+        elif selected_cat_group == "Manufacturing":
+            if row['Tech_subsector'] in manufacturing_codes and row['Tech_subsector'] not in selected_codes:
+                return "Manufacturing Other"
+            elif row['Tech_subsector'] in extractive_codes:
+                return "Extractive Industry"
+        elif selected_cat_group == "Extractive Industry":
+            if row['Tech_subsector'] in extractive_codes and row['Tech_subsector'] not in selected_codes:
+                return "Extractive Industry Other"
+            elif row['Tech_subsector'] in manufacturing_codes:
+                return "Manufacturing"
+        return None
+
+    df_year = df_year.copy()
+    df_year['Group'] = df_year.apply(assign_group, axis=1)
+
+    # Only show three mutually exclusive bars
+    if selected_cat_group == "Manufacturing":
+        keep_groups = [selected_cat, "Manufacturing Other", "Extractive Industry"]
+        group_order = [selected_cat, "Manufacturing Other", "Extractive Industry"]
+    elif selected_cat_group == "Extractive Industry":
+        keep_groups = [selected_cat, "Manufacturing", "Extractive Industry Other"]
+        group_order = [selected_cat, "Manufacturing", "Extractive Industry Other"]
+    else:
+        # fallback: treat as manufacturing
+        keep_groups = [selected_cat, "Manufacturing Other", "Extractive Industry"]
+        group_order = [selected_cat, "Manufacturing Other", "Extractive Industry"]
+    df_year = df_year[df_year['Group'].isin(keep_groups)]
+
+    grouped = (
+        df_year
+        .groupby(['Group', 'Carrier'])['Energy_display']
+        .sum()
+        .reset_index()
+    )
+
+    # Set the carrier order for the chart
+    if 'carrier_order' in globals():
+        this_carrier_order = carrier_order
+    else:
+        this_carrier_order = sorted(df['Carrier'].dropna().unique())
+
+    # Chart display options
+    with st.sidebar.expander("Chart display options", expanded=False):
+        show_legend = st.checkbox("Show legend", value=True)
+        label_font_size = st.slider("Label font size", min_value=8, max_value=28, value=16)
+        label_mode = st.radio(
+            "Label mode",
+            options=["Auto", "Manual"],
+            index=0,
+            help="Auto: show labels for large bars automatically. Manual: select which groups to show labels for."
+        )
+        # PATCH: Use carrier names for manual label selection
+        carrier_options = list(this_carrier_order)
+        if label_mode == "Manual":
+            show_label_for = st.multiselect("Show labels for carriers", carrier_options, default=carrier_options)
+        else:
+            show_label_for = carrier_options
+        tick_label_font_size = st.slider("Axis tick label font size", min_value=8, max_value=28, value=12)
+        show_data_table = st.checkbox("Show table of chart values below", value=False)
+        show_trace_colors = st.checkbox("Select trace (fill) colors", value=False)
+        carrier_color_map = {}
+        if show_trace_colors:
+            carriers = sorted(df['Carrier'].dropna().unique())
+            for label in carriers:
+                col = carrier_colors.get(label, "#CCCCCC")
+                picked = st.color_picker(f"Trace color for {label}", col, key=f"grouped_ind_bar_color_{label}")
+                carrier_color_map[label] = picked
+        else:
+            for label in df['Carrier'].dropna().unique():
+                carrier_color_map[label] = carrier_colors.get(label, "#CCCCCC")
+        show_label_text_colors = st.checkbox("Select label text colors (black or white)", value=False)
+        label_text_colors = {}
+        if show_label_text_colors:
+            st.markdown("**Pick black or white for each group label's text:**")
+            for group in group_order:
+                txt_col = st.selectbox(
+                    f"Text color for {group}",
+                    options=["white", "black"],
+                    index=0,
+                    key=f"grouped_ind_textcol_{group}"
+                )
+                label_text_colors[group] = txt_col
+        else:
+            for group in group_order:
+                label_text_colors[group] = "white"
+
+    y_label = f"Energy demand ({display_unit}/yr)"
+    fig = px.bar(
+        grouped,
+        x='Group',
+        y='Energy_display',
+        color='Carrier',
+        labels={'Energy_display': y_label, 'Group': 'Industry Group', 'Carrier': 'Carrier'},
+        title=f"{scenario} Industry Demand by Group ({selected_year})",
+        color_discrete_map=carrier_color_map,
+        category_orders={'Group': group_order, 'Carrier': this_carrier_order}
+    )
+    fig.update_layout(
+        height=900,
+        showlegend=show_legend,
+        title_x=0.5,
+        title_font=dict(size=tick_label_font_size),
+        xaxis_title="Industry Group",
+        yaxis_title=y_label,
+    )
+    fig.update_xaxes(
+        tickangle=-10,
+        showline=True,
+        linewidth=2,
+        linecolor='black',
+        ticks='outside',
+        ticklen=10,
+        tickwidth=2,
+        tickcolor='black',
+        tickfont=dict(size=tick_label_font_size),
+        title_font=dict(size=tick_label_font_size)
+    )
+    fig.update_yaxes(
+        showgrid=True,
+        gridcolor='lightgrey',
+        gridwidth=1,
+        showline=True,
+        linewidth=2,
+        linecolor='black',
+        ticks='outside',
+        ticklen=10,
+        tickwidth=2,
+        tickcolor='black',
+        mirror=True,
+        tickfont=dict(size=tick_label_font_size),
+        title_font=dict(size=tick_label_font_size)
+    )
+
+    # Label logic
+    auto_show = label_mode == "Auto"
+    manual_show = label_mode == "Manual"
+    bar_threshold = 0.05  # Only label if bar is >=5% of group stack
+    from collections import defaultdict
+    stack_heights = defaultdict(float)
+    for t in fig.data:
+        for x_val, y_val in zip(t.x, t.y):
+            stack_heights[str(x_val)] += y_val
+    for trace in fig.data:
+        positions = []
+        texts = []
+        for x_val, y_val in zip(trace.x, trace.y):
+            stack = stack_heights[str(x_val)]
+            rel = y_val / stack if stack > 0 else 0
+            group = x_val
+            # PATCH: Label logic now checks carrier name against show_label_for
+            is_label = (
+                (auto_show and group in group_order and rel >= bar_threshold)
+                or (manual_show and trace.name in show_label_for)
+            )
+            if is_label:
+                if y_val < 1:
+                    positions.append("outside")
+                else:
+                    positions.append("inside" if rel >= 0.10 else "outside")
+                texts.append(trace.name)
+            else:
+                positions.append("none")
+                texts.append(" ")
+        trace.textposition = positions
+        trace.text = texts
+        trace.texttemplate = "%{text} %{y:.0f} (" + display_unit + "/yr)"
+        trace.insidetextanchor = "middle"
+        group_name = trace.x[0] if hasattr(trace, "x") and len(trace.x) > 0 else trace.name
+        trace.textfont = dict(size=label_font_size, color=label_text_colors.get(group_name, "white"))
+        trace.width = 0.54
+        trace.hovertemplate = (
+            "Group: %{x}<br>"
+            f"{y_label}: "+"%{y:.3f}<br>"
+            "Carrier: %{legendgroup}<extra></extra>"
+        )
+
+    st.plotly_chart(fig, use_container_width=True)
+
+    if show_data_table:
+        st.subheader("Underlying values for chart")
+        st.dataframe(grouped.pivot(index='Carrier', columns='Group', values='Energy_display').reset_index())
+
+    csv_bytes = grouped.to_csv(index=False).encode('utf-8')
+    st.sidebar.download_button(
+        "Download grouped industry data as CSV",
+        data=csv_bytes,
+        file_name=f"{scenario}_grouped_industry_{selected_year}_{display_unit}.csv",
+        mime="text/csv"
+    )
+# 8) Dispatch
+if selection == "GHG Emissions":
+    GHG_Graph()
+elif selection == "Energy Demand":
+    Energy_Demand()
+elif selection == "Energy Demand Grouped":
+    Energy_Demand_Grouped()
+elif selection == "Energy Demand (Bar Chart)":
+    Energy_Demand_Bar()
+elif selection == "Carbon Content (Bar Chart)":
+    Carbon_content_Bar()
+#elif selection == "Pie Chart All Sectors":
+#    Pie_Generator("All")
+elif selection == "Pie Chart Agriculture":
+    Pie_Generator("Agriculture", 2)
+elif selection == "Pie Chart Transport":
+    Pie_Generator("Transport", 2)
+elif selection == "Pie Chart Building":
+    Pie_Generator("Commercial|Residential", 2)
+elif selection == "Pie Chart Industry":
+    Pie_Generator("Industry",2)
+elif selection == "Multi Sector Bar Chart":
+    Multi_Sector_Bar()
+elif selection == "Industry Subsector Bar Chart":
+    Industry_Sector_Bar()
+elif selection == "Grouped Industry Bar Chart":
+    Grouped_Industry_Bar()
+elif selection == "Carbon Content (Bar Chart)":
+    Carbon_content_Bar()
+

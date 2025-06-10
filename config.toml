@@ -1,0 +1,164 @@
+# Global CSS styling applied via st.markdown
+CSS_STYLE = """
+<style>
+    .stApp { background-color: #eaf4fc; color:rgb(72, 209, 237); }
+    [data-testid="stSidebar"] { background-color: #d0e7ff; }
+    [data-testid="stSidebar"] .css-1d391kg { color: #003f88; }
+    .stButton>button { background-color: #498cff; color: #ffffff; }
+    /* Radio/toggle styling */
+    .stRadio .css-1w90hqc input:checked + label::before {
+        background-color: #00bfa5; border-color: #00bfa5;
+    }
+    .stRadio .css-1w90hqc { color: #003f88; }
+    /* Multi-select chips */
+    [data-testid="stMultiSelect"] button,
+    [data-testid="stMultiSelect"] .css-1emrehy.edgvbvh3 {
+        background-color: #cccccc !important; color: #333333 !important;
+    }
+    /* Slider styling */
+    [data-testid="stSlider"] input[type="range"]::-webkit-slider-runnable-track {
+        background: #d0e7ff !important;
+    }
+    [data-testid="stSlider"] input[type="range"]::-webkit-slider-thumb {
+        background: #498cff !important; border: 2px solid #003f88 !important;
+    }
+    /* Dropdown background */
+    [data-baseweb="select"] { background-color: #d0e7ff !important; }
+</style>
+"""
+
+# Page selector mapping
+[PAGES]
+"Energy Demand" = "Energy Demand"
+"Pie Chart All Sectors" = "page_2"
+"Pie Chart Agriculture" = "page_3"
+"Pie Chart Transport" = "page_4"
+"Pie Chart Building" = "page_5"
+"Pie Chart Industry" = "page_6"
+"Energy Demand (Bar Chart)" = "Energy_Demand_Bar"
+"Multi Sector Bar Chart" = "Multi_Sector_Bar"
+
+# Color mapping for carriers
+[CARRIER_COLORS]
+Diesel            = "#800100"
+Biodiesel         = "#A5D6A7"
+"Renewable Diesel" = "#A5D6A7"
+Ethanol           = "#ffa6a7"
+"Jet Fuel"        = "#ffa6a7"
+Gasoline          = "#ff0000"
+Electricity       = "#ffbf00"
+"Heavy Fuel Oil"  = "#757575"
+"Light Fuel Oil"  = "#757575"
+"Natural Gas"     = "#4f95d9"
+Propane           = "#1E88E5"
+Steam             = "#cccccc"   # or your preferred steam-grey
+Coal              = "#0d0d0d"
+Plastics          = "#B0BEC5"   # pick a hex for plastics
+Wood              = "#02b050"
+
+# Default stacking order for categorical axes
+STACK_ORDER = [
+  "Coal", "Plastics", "Fuel Oil", "Heavy Fuel Oil", "Light Fuel Oil",
+  "Renewable Diesel", "Diesel", "Biodiesel", "Gasoline", "Jet Fuel",
+  "Propane", "Natural Gas", "Ethanol", "Wood", "Biofuels", "Steam",
+  "Electricity"
+]
+
+# Industry subsector to category mapping
+[CATEGORY_MAPPING."Agri-Forestry"]
+values = [
+  "Agriculture Motive",
+  "Agriculture Non Motive",
+  "Forest Products Power Generation",
+  "Forest Products Process Heat",
+  "Forest Products Transport"
+]
+
+[CATEGORY_MAPPING."Residential & Commercial & Construction"]
+values = [
+  "Commercial Other Applications",
+  "Commercial Space Heating",
+  "Commercial Water Heating",
+  "Residential Other Applications",
+  "Residential Space Heating",
+  "Residential Water Heating",
+  "Construction Power Generation",
+  "Construction Process Heat",
+  "Construction Transport"
+]
+
+[CATEGORY_MAPPING.Manufacturing]
+values = [
+  "Manufacturing Facility Support",
+  "Manufacturing Machine Drive",
+  "Manufacturing Other Processes",
+  "Manufacturing Power Generation",
+  "Manufacturing Process Heat",
+  "Manufacturing Transport",
+  "Other Non-Metal Facility Support",
+  "Other Non-Metal Machine Drive",
+  "Other Non-Metal Power Generation",
+  "Other Non-Metal Process Heat",
+  "Other Non-Metal Transport",
+  "Salt Facility Support",
+  "Salt Machine Drive",
+  "Salt Process Heat"
+]
+
+[CATEGORY_MAPPING."Process Industries"]
+values = [
+  "Cement Facility Support",
+  "Cement Machine Drive",
+  "Cement Other Processes",
+  "Cement Process Heat",
+  "Cement Transport",
+  "Chemical Industry Facility Support",
+  "Chemical Industry Machine Drive",
+  "Chemical Industry Other Processes",
+  "Chemical Industry Power Generation",
+  "Chemical Industry Process Heat",
+  "Chemical Industry Transport",
+  "Iron and Steel Facility Support",
+  "Iron and Steel Machine Drive",
+  "Iron and Steel Other Processes",
+  "Iron and Steel Power Generation",
+  "Iron and Steel Process Heat",
+  "Iron and Steel Transport",
+  "Smelting Industry Facility Support",
+  "Smelting Industry Machine Drive",
+  "Smelting Industry Other Processes",
+  "Smelting Industry Process Heat",
+  "Pulp and Paper Industry Facility Support",
+  "Pulp and Paper Industry Machine Drive",
+  "Pulp and Paper Industry Other Processes",
+  "Pulp and Paper Industry Power Generation",
+  "Pulp and Paper Industry Process Heat",
+  "Pulp and Paper Industry Transport"
+]
+
+[CATEGORY_MAPPING."Mining & Extraction"]
+values = [
+  "Copper Mine Facility Support",
+  "Copper Mine Machine Drive",
+  "Copper Mine Other Processes",
+  "Copper Mine Process Heat",
+  "Copper Mine Power Generation",
+  "Copper Mine Transport",
+  "Gold and Silver Mine Facility Support",
+  "Gold and Silver Mine Machine Drive",
+  "Gold and Silver Mine Other Processes",
+  "Gold and Silver Mine Power Generation",
+  "Gold and Silver Mine Process Heat",
+  "Gold and Silver Mine Transport",
+  "Iron Mine Facility Support",
+  "Iron Mine Machine Drive",
+  "Iron Mine Other Processes",
+  "Iron Mine Power Generation",
+  "Iron Mine Process Heat"
+]
+
+# Group-by mapping used in Energy Demand charts
+[GROUP_MAP]
+Carrier = "Carrier"
+"Carrier & Tech" = "Tech_name"
+"Sub Sector" = "Tech_subsector"

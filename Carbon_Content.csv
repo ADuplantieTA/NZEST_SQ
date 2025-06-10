@@ -1,0 +1,13 @@
+﻿Carrier,HHV (MJ/kg),Carbon Content (kgC/kg),Energy per kg C (MJ/kgC)
+Coal,32.6,0.86,27.9
+Heavy Fuel Oil,41.8,0.85,35.5
+Light Fuel Oil,46.2,0.86,39.7
+Diesel,45.5,0.86,39.1
+Gasoline,45.8,0.9,41.2
+Jet Fuel,46.3,0.82,38
+Propane,51.3,0.82,42.1
+Natural Gas,54,0.75,40.5
+Wood,20,0.5,10
+Biodiesel,45.5,0.86,39.1
+Renewable Diesel,45.5,0.86,39.1
+Ethanol,45.8,0.9,41.2
