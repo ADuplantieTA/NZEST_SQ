@@ -540,7 +540,7 @@ PAGES = {
     "Intro": "intro",
     "Energy Demand": "Energy_Demand",
     "Energy Demand Grouped": "Energy_Demand_Grouped",
-    "Pie Chart All Sectors": "page_2",
+    # "Pie Chart All Sectors": "page_2",
     "Pie Chart Agriculture": "page_3",
     "Pie Chart Transport": "page_4",
     "Pie Chart Building": "page_5",
@@ -3273,8 +3273,8 @@ elif selection == "Energy Demand (Bar Chart)":
     Energy_Demand_Bar()
 elif selection == "Carbon Content (Bar Chart)":
     Carbon_content_Bar()
-#elif selection == "Pie Chart All Sectors":
-#    Pie_Generator("All")
+# elif selection == "Pie Chart All Sectors":
+#     Pie_Generator("All")
 elif selection == "Pie Chart Agriculture":
     Pie_Generator("Agriculture", 2)
 elif selection == "Pie Chart Transport":
