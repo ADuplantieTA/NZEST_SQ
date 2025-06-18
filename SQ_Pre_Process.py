@@ -373,6 +373,6 @@ def process_SQ(input_csv_path, output_csv_path):
 # Optional: Script execution guard for standalone usage
 if __name__ == "__main__":
     # Example usage with default paths
-    excel_files_SQ = "/Users/antoineduplantie-grenier/Desktop/Modeling/VIZ/Output/Status-quo scenario data.csv"
-    output_path = "/Users/antoineduplantie-grenier/Desktop/Modeling/VIZ/SQ_Post_Process.csv"
+    excel_files_SQ = "Status-quo scenario data.csv"
+    output_path = "SQ_Post_Process.csv"
     process_SQ(excel_files_SQ, output_path)
