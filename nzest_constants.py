@@ -133,14 +133,14 @@ carrier_colors = {
     "Biodiesel": "#29C12E",
     "Gasoline":  "#ff0000",
     "Jet Fuel":  "#ffa6a7",
-    "HFO":       "#757575",   # Heavy fuel‑oil (bunker)
+    "HFO":       "#4C4A4A",   # Heavy fuel‑oil (bunker)
     "LFO":       "#9e9e9e",   # Light fuel‑oil
     # Gaseous & thermal
-    "Prop":      "#043CD6",
+    "Prop":      "#4A7FC8",
     "NG":  "#4f95d9",
     "Steam":        "#b3e5fc",
     # Low‑carbon / renewables
-    "Ethanol":   "#5A7B39",
+    "Ethanol":   "#87DA78",
     "Wood":      "#02b050",
     "Plastics":  "#65514b",
     "Elec": "#ffbf00",
@@ -351,17 +351,16 @@ stack_order = [
     "HFO",
     "LFO",
     "Diesel",
-    "Ethanol",
     "Gasoline",
     "Jet Fuel",
     "Prop",
     "NG",
     "Steam",
-    "R-Diesel",
     "Biodiesel",
-    # Renewable solids & heat
+    "R-Diesel",
+    #"PR" att zero but will be added at one point or in NZ
+    "Ethanol",
     "Wood",
-    # Always on top
     "Elec"
 ]
 

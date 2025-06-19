@@ -1102,7 +1102,7 @@ def Energy_Demand():
         show_cutoff_line = st.checkbox("Show 2022 data/model cutoff", value=False)
         show_labels = st.checkbox("Show area/bar labels on chart", value=True)
         show_legend = st.checkbox("Show legend", value=False)
-        label_font_size = st.slider("Label font size", min_value=8, max_value=28, value=16)
+        label_font_size = st.slider("Label font size", min_value=16, max_value=34, value=24)
         label_mode = st.radio(
             "Label mode",
             options=["Auto", "Manual"],
@@ -1116,7 +1116,7 @@ def Energy_Demand():
         else:
             show_label_for = label_options
         tick_label_font_size = st.slider(
-            "Axis tick label font size", min_value=8, max_value=28, value=12
+            "Axis tick label font size", min_value=16, max_value=34, value=24
         )
         show_data_table = st.checkbox("Show table of chart values below", value=False)
 
@@ -1243,10 +1243,10 @@ def Energy_Demand():
     if show_cutoff_line:
         fig.add_vline(
             x=2022,
-            line_dash="dot",
+            line_dash="dash",
             line_color="black",
             line_width=2,
-            annotation_text="   Historical → Model",
+            annotation_text="",
             annotation_position="top right",
             annotation_font_size=12
         )
