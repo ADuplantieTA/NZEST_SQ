@@ -96,7 +96,7 @@ def Energy_Demand_Grouped():
         show_cutoff_line = st.checkbox("Show 2022 data/model cutoff", value=False)
         show_labels = st.checkbox("Show area labels on chart", value=True)
         show_legend = st.checkbox("Show legend", value=False)
-        label_font_size = st.slider("Label font size", min_value=8, max_value=28, value=16)
+        label_font_size = st.slider("Label font size", min_value=16, max_value=34, value=24)
         label_mode = st.radio(
             "Label mode",
             options=["Auto", "Manual"],
@@ -110,7 +110,7 @@ def Energy_Demand_Grouped():
         else:
             show_label_for = label_options
         tick_label_font_size = st.slider(
-            "Axis tick label font size", min_value=8, max_value=28, value=12
+            "Axis tick label font size", min_value=16, max_value=34, value=24
         )
         show_data_table = st.checkbox("Show table of chart values below", value=False)
 

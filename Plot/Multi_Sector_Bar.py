@@ -98,7 +98,7 @@ def Multi_Sector_Bar():
             index=0,
             help="Auto: show labels for large bars automatically. Manual: select which categories to show labels for."
         )
-        tick_label_font_size = st.slider("Axis tick label font size", min_value=8, max_value=28, value=12)
+        tick_label_font_size = st.slider("Axis tick label font size", min_value=16, max_value=34, value=24)
 
         # --- BEGIN: Per-trace color and text color logic for Multi_Sector_Bar ---
         import random

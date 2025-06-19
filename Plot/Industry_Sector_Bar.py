@@ -125,7 +125,7 @@ def Industry_Sector_Bar():
         else:
             show_label_for = label_options
         # Add tick label font size slider at the end
-        tick_label_font_size = st.slider("Axis tick label font size", min_value=8, max_value=28, value=12)
+        tick_label_font_size = st.slider("Axis tick label font size", min_value=16, max_value=34, value=24)
 
         # --- BEGIN: Per-label color logic for Industry_Sector_Bar ---
         import random

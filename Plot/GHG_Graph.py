@@ -84,7 +84,7 @@ def GHG_Graph():
         else:
             show_label_for = label_options
         tick_label_font_size = st.slider(
-            "Axis tick label font size", min_value=8, max_value=28, value=12
+            "Axis tick label font size", min_value=16, max_value=34, value=24
         )
         show_data_table = st.checkbox("Show table of chart values below", value=False)
 

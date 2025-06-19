@@ -149,7 +149,7 @@ def Grouped_Industry_Bar():
             show_label_for = st.multiselect("Show labels for carriers", carrier_options, default=carrier_options)
         else:
             show_label_for = carrier_options
-        tick_label_font_size = st.slider("Axis tick label font size", min_value=8, max_value=28, value=12)
+        tick_label_font_size = st.slider("Axis tick label font size", min_value=16, max_value=34, value=24)
         show_data_table = st.checkbox("Show table of chart values below", value=False)
         show_trace_colors = st.checkbox("Select trace (fill) colors", value=False)
         carrier_color_map = {}

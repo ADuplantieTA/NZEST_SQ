@@ -1,5 +1,3 @@
-
-
 import streamlit as st
 import pandas as pd
 import plotly.express as px
@@ -24,14 +22,6 @@ base_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "Input")
 
 
 def Energy_Demand_Bar():
-    st.markdown(
-        """
-        <style>
-        .stApp { background-color: #fff; color: #222; }
-        </style>
-        """,
-        unsafe_allow_html=True
-    )
     st.title("NZEST Chart Generator")
 
     # Scenario toggle (no uploader)
@@ -124,7 +114,7 @@ def Energy_Demand_Bar():
             st.warning("No categories available for label selection with current filters.")
         # Add tick label font size slider at the end
         tick_label_font_size = st.slider(
-            "Axis tick label font size", min_value=8, max_value=28, value=12
+            "Axis tick label font size", min_value=16, max_value=34, value=24
         )
         # Add data table checkbox
         show_data_table = st.checkbox("Show table of chart values below", value=False)
@@ -180,6 +170,27 @@ def Energy_Demand_Bar():
         color_discrete_map=label_colors,
     )
 
+    # Enforce white background, black fonts, and full numeric ticks
+    fig.update_layout(template='plotly_white', font_color='black')
+    fig.update_xaxes(tickfont=dict(color='black'), title_font=dict(color='black'), tickformat='.0f')
+    fig.update_yaxes(tickfont=dict(color='black'), title_font=dict(color='black'), tickformat='.0f')
+
+    # Enforce white background, black fonts, and full numeric ticks
+    fig.update_layout(
+        template='plotly_white',
+        font_color='black'
+    )
+    fig.update_xaxes(
+        tickfont=dict(color='black'),
+        title_font=dict(color='black'),
+        tickformat='.0f'
+    )
+    fig.update_yaxes(
+        tickfont=dict(color='black'),
+        title_font=dict(color='black'),
+        tickformat='.0f'
+    )
+
     # Compute stack heights for each x (Year) before the label loop
     from collections import defaultdict  # already imported at top; harmless re-import
     # Build total stack height per Year so we can compare each bar to its stack
@@ -220,6 +231,9 @@ def Energy_Demand_Bar():
         trace.texttemplate = "%{text} %{y:.0f} (" + display_unit + "/yr)"
         trace.insidetextanchor = "middle"
         trace.textfont = dict(size=label_font_size, color=label_text_colors.get(trace.name, "white"))
+        # Force specific labels to black
+        if trace.name in ["Jet Fuel", "Elec"]:
+            trace.textfont['color'] = 'black'
         trace.width = 0.54
         trace.hovertemplate = (
             "Year: %{x}<br>"
@@ -246,8 +260,9 @@ def Energy_Demand_Bar():
         tickwidth=2,
         tickcolor='black',
         mirror=True,
-        tickfont=dict(size=tick_label_font_size),
-        title_font=dict(size=tick_label_font_size)
+        tickfont=dict(size=tick_label_font_size, color='black'),
+        title_font=dict(size=tick_label_font_size, color='black'),
+        tickformat=".0f"
     )
     fig.update_yaxes(
         tickmode='auto',
@@ -261,6 +276,7 @@ def Energy_Demand_Bar():
         ticklen=10,
         tickwidth=2,
         tickcolor='black',
+        tickformat=".0f",
         minor=dict(
             ticklen=5,
             tickwidth=2,
@@ -268,8 +284,8 @@ def Energy_Demand_Bar():
             showgrid=False
         ),
         mirror=True,
-        tickfont=dict(size=tick_label_font_size),
-        title_font=dict(size=tick_label_font_size)
+        tickfont=dict(size=tick_label_font_size, color='black'),
+        title_font=dict(size=tick_label_font_size, color='black')
     )
 
     # Center title and set font size to match tick_label_font_size

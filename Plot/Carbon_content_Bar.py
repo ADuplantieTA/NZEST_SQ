@@ -1,5 +1,3 @@
-
-
 import streamlit as st
 import pandas as pd
 import plotly.express as px
@@ -114,7 +112,7 @@ def Carbon_content_Bar():
             st.warning("No categories available for label selection with current filters.")
         # Add tick label font size slider at the end
         tick_label_font_size = st.slider(
-            "Axis tick label font size", min_value=8, max_value=28, value=12
+            "Axis tick label font size", min_value=16, max_value=34, value=24
         )
         # Add data table checkbox
         show_data_table = st.checkbox("Show table of chart values below", value=False)
