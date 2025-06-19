@@ -11,7 +11,9 @@ Interactive Streamlit dashboard for NZEST Status-Quo energy demand projections.
 3. **Installation**  
 4. **Running the App**  
 5. **Environment Variables & Configuration**  
-6. **Code Structure**  
+6. **Directory Structure**  
+
+7. **Code Structure**  
    - **1. Imports**  
    - **2. Helper Functions**  
    - **3. Page Setup (`setup_page`)**  
@@ -70,7 +72,7 @@ Key features:
 In the project root directory, run:
 
 ```bash
-streamlit run nzest_explorator_v4.py
+streamlit run nzest_explorator_v4.py --server.port 8501
 ```
 
 This launches the dashboard at `http://localhost:8501`.
@@ -90,6 +92,30 @@ This launches the dashboard at `http://localhost:8501`.
       └── ...plot modules...
   ```
 - If your structure differs, adjust `base_dir` logic in `setup_page()`.
+
+---
+
+## Directory Structure
+
+```
+NZEST_SQ/
+├── Input/
+│   └── logo.png
+├── Plot/
+│   ├── Energy_Demand.py
+│   ├── Energy_Demand_Grouped.py
+│   ├── Energy_Demand_Bar.py
+│   ├── Multi_Sector_Bar.py
+│   ├── Industry_Sector_Bar.py
+│   ├── GHG_Graph.py
+│   ├── Carbon_content_Bar.py
+│   ├── Pie_Generator.py
+│   └── Grouped_Industry_Bar.py
+├── nzest_explorator_v4.py
+├── nzest_constants.py
+├── requirements.txt
+└── README.md
+```
 
 ---
 
@@ -173,4 +199,3 @@ Each file in `Plot/` defines a function/class to render a specific chart (e.g., 
 - **Data sources**: Update constants and Plot modules to load additional datasets.
 
 ---
-
