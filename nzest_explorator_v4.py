@@ -1,10 +1,15 @@
+# Standard library
+import os
+from pathlib import Path
+from collections import defaultdict
+
+# Third-party
 import streamlit as st
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
-import os
-from pathlib import Path
-from collections import defaultdict
+
+# Local modules
 from nzest_constants import (
     sector_activity_dict,
     carrier_dict,
@@ -29,68 +34,60 @@ from Plot.Pie_Generator import Pie_Generator
 from Plot. Grouped_Industry_Bar import  Grouped_Industry_Bar
 
 
-# Base directory for consistent file path reference
-base_dir = os.path.join(os.path.dirname(__file__), "Input")
+def setup_page():
+    # 1) Page configuration
+    st.set_page_config(page_title="NZEST explorator", layout="wide")
 
-
-
-# Initialize intro flag and default page
-if "intro_shown" not in st.session_state:
-    st.session_state["intro_shown"] = False
-if "Go to" not in st.session_state:
-    st.session_state["Go to"] = "Energy Demand"
-
-# Option B: Callback for Intro continue button
-def _go_to_energy():
-    st.session_state['intro_shown'] = True
-    st.session_state['Go to'] = "Energy Demand"
-
-# Mapping of subsector codes to their own abbreviations (identity mapping)
-
-
-
-# 1) Page configuration
-st.set_page_config(page_title="NZEST explorator", layout="wide")
-
-# Page transition animation: fade-in effect
-st.markdown("""
-<style>
-.stApp {
-    animation: fadeIn 0.5s ease-in-out;
-}
-@keyframes fadeIn {
-    from {opacity: 0;}
-    to {opacity: 1;}
-}
-</style>
-""", unsafe_allow_html=True)
-
-# Sidebar logo styling (rounded corners, border, shadow, full width)
-st.markdown("""
+    # Page transition animation: fade-in effect
+    st.markdown("""
     <style>
-    [data-testid="stSidebar"] img {
-        border-radius: 20px !important;
-        border: 2px solid #b8d8eb;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.07);
-        width: 100% !important;
-        height: auto !important;
-        max-width: 100% !important;
-        display: block;
-        margin: 0 auto;
+    .stApp {
+        animation: fadeIn 0.5s ease-in-out;
+    }
+    @keyframes fadeIn {
+        from {opacity: 0;}
+        to {opacity: 1;}
     }
     </style>
-""", unsafe_allow_html=True)
+    """, unsafe_allow_html=True)
+
+    # Sidebar logo styling (rounded corners, border, shadow, full width)
+    st.markdown("""
+        <style>
+        [data-testid="stSidebar"] img {
+            border-radius: 20px !important;
+            border: 2px solid #b8d8eb;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.07);
+            width: 100% !important;
+            height: auto !important;
+            max-width: 100% !important;
+            display: block;
+            margin: 0 auto;
+        }
+        </style>
+    """, unsafe_allow_html=True)
+
+    # Base directory for consistent file path reference
+    base_dir = os.path.join(os.path.dirname(__file__), "Input")
+
+    # Compute and display sidebar logo
+    logo_path = os.path.join(base_dir, "logo.png")
+    # Debug: show the resolved path
+    if os.path.exists(logo_path):
+        st.sidebar.image(logo_path)
+    else:
+        st.warning(f"Sidebar logo not found at {logo_path}")
+
+    # Initialize intro flag and default page
+    if "intro_shown" not in st.session_state:
+        st.session_state["intro_shown"] = False
+    if "Go to" not in st.session_state:
+        st.session_state["Go to"] = "Energy Demand"
 
 
-
-# Compute and display sidebar logo
-logo_path = os.path.join(base_dir, "logo.png")
-# Debug: show the resolved path
-if os.path.exists(logo_path):
-    st.sidebar.image(logo_path)
-else:
-    st.warning(f"Sidebar logo not found at {logo_path}")
-
+def _handle_continue():
+    st.session_state['intro_shown'] = True
+    st.session_state['Go to'] = "Energy Demand"
 
 
 # Intro page function
@@ -116,6 +113,7 @@ def Intro():
         </style>
     """, unsafe_allow_html=True)
     # Intro page logo display with debug
+    base_dir = os.path.join(os.path.dirname(__file__), "Input")
     logo_path = os.path.join(base_dir, "logo.png")
     if os.path.exists(logo_path):
         st.image(logo_path, width=None)
@@ -142,45 +140,51 @@ Navigation guide:
 
 Click **Continue** to explore detailed charts and insights.
     """, unsafe_allow_html=True)
-    if st.button("Continue", on_click=_go_to_energy):
+    if st.button("Continue", on_click=_handle_continue):
         pass
     st.stop()
 
-# Automatically show intro page once
-if not st.session_state["intro_shown"]:
-    Intro()
+
+def run_app():
+    setup_page()
+
+    # Automatically show intro page once
+    if not st.session_state["intro_shown"]:
+        Intro()
+
+    pages_for_select = [k for k in PAGES.keys() if k != "Intro"]
+    selection = st.sidebar.selectbox("Go to", pages_for_select, key="Go to")
+
+    # 8) Dispatch
+    if selection == "GHG Emissions":
+        GHG_Graph()
+    elif selection == "Energy Demand":
+        Energy_Demand()
+    elif selection == "Energy Demand Grouped":
+        Energy_Demand_Grouped()
+    elif selection == "Energy Demand (Bar Chart)":
+        Energy_Demand_Bar()
+    elif selection == "Carbon Content (Bar Chart)":
+        Carbon_content_Bar()
+    # elif selection == "Pie Chart All Sectors":
+    #     Pie_Generator("All")
+    elif selection == "Pie Chart Agriculture":
+        Pie_Generator("Agriculture", 2)
+    elif selection == "Pie Chart Transport":
+        Pie_Generator("Transport", 2)
+    elif selection == "Pie Chart Building":
+        Pie_Generator("Commercial|Residential", 2)
+    elif selection == "Pie Chart Industry":
+        Pie_Generator("Industry", 2)
+    elif selection == "Multi Sector Bar Chart":
+        Multi_Sector_Bar()
+    elif selection == "Industry Subsector Bar Chart":
+        Industry_Sector_Bar()
+    elif selection == "Grouped Industry Bar Chart":
+        Grouped_Industry_Bar()
+    elif selection == "Carbon Content (Bar Chart)":
+        Carbon_content_Bar()
 
 
-pages_for_select = [k for k in PAGES.keys() if k != "Intro"]
-selection = st.sidebar.selectbox("Go to", pages_for_select, key="Go to")
-
-
-# 8) Dispatch
-if selection == "GHG Emissions":
-    GHG_Graph()
-elif selection == "Energy Demand":
-    Energy_Demand()
-elif selection == "Energy Demand Grouped":
-    Energy_Demand_Grouped()
-elif selection == "Energy Demand (Bar Chart)":
-    Energy_Demand_Bar()
-elif selection == "Carbon Content (Bar Chart)":
-    Carbon_content_Bar()
-# elif selection == "Pie Chart All Sectors":
-#     Pie_Generator("All")
-elif selection == "Pie Chart Agriculture":
-    Pie_Generator("Agriculture", 2)
-elif selection == "Pie Chart Transport":
-    Pie_Generator("Transport", 2)
-elif selection == "Pie Chart Building":
-    Pie_Generator("Commercial|Residential", 2)
-elif selection == "Pie Chart Industry":
-    Pie_Generator("Industry",2)
-elif selection == "Multi Sector Bar Chart":
-    Multi_Sector_Bar()
-elif selection == "Industry Subsector Bar Chart":
-    Industry_Sector_Bar()
-elif selection == "Grouped Industry Bar Chart":
-    Grouped_Industry_Bar()
-elif selection == "Carbon Content (Bar Chart)":
-    Carbon_content_Bar()
+if __name__ == "__main__":
+    run_app()
