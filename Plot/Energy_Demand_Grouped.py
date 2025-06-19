@@ -2,22 +2,10 @@
 
 import streamlit as st
 import pandas as pd
-import plotly.express as px
-import plotly.graph_objects as go
 from load_csv import load_csv
 import os
-from collections import defaultdict
 from nzest_constants import (
-    sector_activity_dict,
-    carrier_dict,
-    carrier_colors,
-    sector_activity_colors,
-    carrier_tech_colors,
     group_colors,
-    stack_order,
-    category_mapping,
-    PAGES,
-    fossil_carriers,
     group_order,
 )
 base_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "Input")

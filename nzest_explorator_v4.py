@@ -1,28 +1,9 @@
 # Standard library
 import os
-from pathlib import Path
-from collections import defaultdict
-
 # Third-party
 import streamlit as st
-import pandas as pd
-import plotly.express as px
-import plotly.graph_objects as go
-
 # Local modules
-from nzest_constants import (
-    sector_activity_dict,
-    carrier_dict,
-    carrier_colors,
-    sector_activity_colors,
-    carrier_tech_colors,
-    group_colors,
-    stack_order,
-    category_mapping,
-    PAGES,
-    fossil_carriers,
-    group_order,
-)
+from nzest_constants import PAGES
 from Plot.Energy_Demand import Energy_Demand
 from Plot.Energy_Demand_Grouped import Energy_Demand_Grouped
 from Plot.Multi_Sector_Bar import Multi_Sector_Bar

@@ -4,7 +4,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 from load_csv import load_csv
 import os
-from collections import defaultdict
+
 from nzest_constants import (
     sector_activity_dict,
     carrier_dict,
