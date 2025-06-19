@@ -21,7 +21,7 @@ Interactive Streamlit dashboard for NZEST Status-Quo energy demand projections.
    - **5. Main App Runner (`run_app`)**  
    - **6. Plot Modules (`Plot/`)**  
 7. **Extending & Customizing**  
-8. **License**  
+
 
 ---
 
