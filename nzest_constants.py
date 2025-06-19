@@ -491,3 +491,34 @@ group_order = ["Transport", "Building", "Industry"]
 fossil_carriers = ["Coal", "HFO", "LFO",
                     "Diesel", "R-Diesel", "Gasoline", "Jet Fuel",
                     "Prop", "NG", "Plastics"]
+
+
+
+tech_subsector_to_group = {}
+# Manufacturing
+manufacturing_list = [
+    "Alum_fs", "Alum_md", "Alum_op", "Alum_ph", "Alum_tr",
+    "Cement_fs", "Cement_md", "Cement_op", "Cement_ph", "Cement_tr",
+    "Chem_fs", "Chem_md", "Chem_op", "Chem_pg", "Chem_ph", "Chem_tr",
+    "Const_pg", "Const_ph", "Const_tr",
+    "I&S_fs", "I&S_md", "I&S_op", "I&S_pg", "I&S_ph", "I&S_tr",
+    "Manuf_fs", "Manuf_md", "Manuf_op", "Manuf_pg", "Manuf_ph", "Manuf_tr",
+    "Smelt_fs", "Smelt_md", "Smelt_op", "Smelt_ph", "Smelt_tr",
+    "p&p_fs", "p&p_md", "p&p_op", "p&p_pg", "p&p_ph", "p&p_tr"
+]
+for code in manufacturing_list:
+    tech_subsector_to_group[code] = "Manufacturing"
+# Extractive Industry
+extractive_list = [
+    "Cu mine_fs", "Cu mine_md", "Cu mine_op", "Cu mine_pg", "Cu mine_ph", "Cu mine_tr",
+    "Forest_pg", "Forest_ph", "Forest_tr",
+    "G&S mine_fs", "G&S mine_md", "G&S mine_op", "G&S mine_pg", "G&S mine_ph", "G&S mine_tr",
+    "I mine_fs", "I mine_md", "I mine_op", "I mine_pg", "I mine_ph", "I mine_tr",
+    "O non-met_md", "O non-met_pg", "O non-met_tr",
+    "K mine_fs", "K mine_md", "K mine_ph", "K mine_tr",
+    "O metal_fs", "O metal_md", "O metal_op", "O metal_pg", "O metal_ph", "O metal_tr",
+    "O non-met_fs", "O non-met_ph",
+    "Salt_fs", "Salt_md", "Salt_ph", "Salt_tr"
+]
+for code in extractive_list:
+    tech_subsector_to_group[code] = "Extractive Industry"
